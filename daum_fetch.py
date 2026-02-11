@@ -3,6 +3,8 @@ Daum Finance exclusive fetcher with allowlist enforcement
 """
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import time
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
@@ -17,6 +19,33 @@ from config import (
     CACHE_TTL_DEFAULT
 )
 from cache_manager import get_cache
+
+
+# Global session with retry strategy
+_session = None
+
+def get_session():
+    """Get or create a global requests session with retry strategy"""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        
+        # Retry strategy for specific status codes
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        _session.mount("http://", adapter)
+        _session.mount("https://", adapter)
+        
+        # Set default headers
+        _session.headers.update(DEFAULT_HEADERS)
+    
+    return _session
 
 
 @dataclass
@@ -105,6 +134,7 @@ def fetch(
                 )
 
     # Prepare headers
+    session = get_session()
     request_headers = DEFAULT_HEADERS.copy()
     if headers:
         request_headers.update(headers)
@@ -113,15 +143,16 @@ def fetch(
     if 'Referer' not in request_headers:
         request_headers['Referer'] = 'https://finance.daum.net/'
 
-    # Retry logic
+    # Retry logic with session
     last_error = None
     for attempt in range(MAX_RETRIES + 1):
         try:
-            response = requests.get(
+            response = session.get(
                 url,
                 headers=request_headers,
                 params=params,
-                timeout=DEFAULT_TIMEOUT
+                timeout=DEFAULT_TIMEOUT,
+                allow_redirects=True
             )
 
             # Success
