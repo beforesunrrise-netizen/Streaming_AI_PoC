@@ -40,13 +40,16 @@ def search_daum_finance_urls(
     Returns:
         List of TavilySearchResult objects with URLs only
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from tavily import TavilyClient
 
         # Get API key
         api_key = get_env('TAVILY_API_KEY')
         if not api_key:
-            print("⚠️ TAVILY_API_KEY not found - skipping Tavily search")
+            logger.warning("TAVILY_API_KEY not found - skipping Tavily search")
             return []
 
         # Initialize client
@@ -60,6 +63,8 @@ def search_daum_finance_urls(
             search_query += f" {stock_name}"
         if stock_code:
             search_query += f" {stock_code}"
+
+        logger.info(f"Tavily search query: {search_query}")
 
         # Execute search
         # CRITICAL: Only use include_domains to ensure finance.daum.net only
@@ -87,20 +92,16 @@ def search_daum_finance_urls(
                     score=score
                 ))
 
+        logger.info(f"Tavily returned {len(results)} URLs")
         return results
 
     except ImportError:
-        error_msg = "⚠️ tavily-python not installed - skipping Tavily search"
-        print(error_msg)
-        print("   Install with: pip install tavily-python")
+        logger.error("tavily-python not installed - skipping Tavily search")
+        logger.info("Install with: pip install tavily-python")
         return []
 
     except Exception as e:
-        error_msg = f"⚠️ Tavily search failed: {str(e)}"
-        print(error_msg)
-        # Print more details for debugging
-        import traceback
-        print(f"   Traceback: {traceback.format_exc()}")
+        logger.error(f"Tavily search failed: {str(e)}", exc_info=True)
         return []
 
 
@@ -120,12 +121,17 @@ def get_tavily_urls_by_question_type(
     Returns:
         List of URLs from finance.daum.net
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from config import (
         QUESTION_TYPE_BUY_RECOMMENDATION,
         QUESTION_TYPE_PRICE_STATUS,
         QUESTION_TYPE_PUBLIC_OPINION,
         QUESTION_TYPE_NEWS_DISCLOSURE,
     )
+
+    logger.info(f"Getting Tavily URLs for question_type={question_type}, stock={stock_name}")
 
     # Define search queries based on question type
     # Focus on news/disclosures/talks since direct URLs often return 404
@@ -192,4 +198,5 @@ def get_tavily_urls_by_question_type(
         for result in results:
             all_urls.add(result.url)
 
+    logger.info(f"Total unique URLs found: {len(all_urls)}")
     return list(all_urls)

@@ -303,37 +303,41 @@ def generate_answer(
         output.append("질문에 답변할 수 있는 충분한 데이터를 수집하지 못했습니다.")
         output.append("종목 코드를 확인하거나, 다시 시도해주세요.\n")
 
-    # Reference section - clickable links to source pages
+    # Reference section - ALWAYS show (even when show_details=False)
+    # This ensures users can verify all data comes from finance.daum.net
+    output.append("\n---")
+    
     if show_details:
-        output.append("\n---")
         output.append("### 📎 참고한 다음 금융 페이지\n")
+    else:
+        output.append("**📎 참고한 다음 금융 페이지**\n")
 
-        if summaries:
-            # Collect unique URLs
-            reference_urls = []
-            seen_urls = set()
+    if summaries:
+        # Collect unique URLs
+        reference_urls = []
+        seen_urls = set()
 
-            for summary in summaries:
-                url = summary.source_url
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    reference_urls.append({
-                        'type': summary.source_type,
-                        'url': url
-                    })
+        for summary in summaries:
+            url = summary.source_url
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                reference_urls.append({
+                    'type': summary.source_type,
+                    'url': url
+                })
 
-            # Display as clickable links
-            if reference_urls:
-                for i, ref in enumerate(reference_urls[:7], 1):  # Limit to 7 references
-                    # Extract a friendly name from URL or use source type
-                    friendly_name = ref['type'] or f"참고 {i}"
-                    output.append(f"{i}. [{friendly_name}]({ref['url']})")
-            else:
-                output.append("- 참고 URL 없음")
+        # Display as clickable links
+        if reference_urls:
+            for i, ref in enumerate(reference_urls[:7], 1):  # Limit to 7 references
+                # Extract a friendly name from URL or use source type
+                friendly_name = ref['type'] or f"참고 {i}"
+                output.append(f"{i}. [{friendly_name}]({ref['url']})")
         else:
-            output.append("- 수집된 데이터 없음")
+            output.append("- 참고 URL 없음")
+    else:
+        output.append("- 수집된 데이터 없음")
 
-        output.append("")
+    output.append("")
 
     # Footer - compact version
     if show_details:

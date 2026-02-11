@@ -4,6 +4,7 @@ Streamlit UI for Daum Finance Q&A Chatbot - GPT Style Chat Interface
 
 import streamlit as st
 import os
+import logging
 from dotenv import load_dotenv
 
 from state import init_session_state
@@ -20,12 +21,22 @@ from conversation import is_general_conversation, generate_conversational_respon
 # Load environment variables
 load_dotenv()
 
+# Configure logging for Streamlit Cloud
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
     """
     Process stock-related query with ChatGPT-like response flow
     """
     try:
+        # Log the query
+        logger.info(f"Processing stock query: {user_input[:50]}...")
+        
         # STEP 1: Analyze intent (silent or with status)
         if show_steps:
             with st.status("🔍 질문 분석 중...", expanded=False) as status:
@@ -95,6 +106,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
         )
 
         # STEP 2: Create plan
+        logger.info(f"Creating plan for question type: {intent.question_type}")
+        
         if show_steps:
             with st.status("📋 정보 수집 계획 수립 중...", expanded=False) as status:
                 plans = create_plan(intent)
@@ -107,7 +120,20 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
             plans = create_plan(intent)
 
         if not plans:
-            response = "❌ 정보 수집 계획을 생성할 수 없습니다."
+            # Show more helpful error message with debugging info
+            logger.error(f"No plans generated for question_type={intent.question_type}, stock_code={intent.stock_code}")
+            
+            response = "❌ 정보 수집 계획을 생성할 수 없습니다.\n\n"
+            
+            # Add debug info if available
+            if get_env('DEBUG_MODE', 'false').lower() == 'true':
+                response += f"**디버그 정보:**\n"
+                response += f"- 질문 유형: {intent.question_type}\n"
+                response += f"- 종목 코드: {intent.stock_code}\n"
+                response += f"- 종목명: {intent.stock_name}\n\n"
+            
+            response += "잠시 후 다시 시도해주세요."
+            
             st.markdown(response)
             state.add_assistant_message(response)
             st.stop()
@@ -162,6 +188,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
         # Check if all failed
         failed_count = sum(1 for result, _ in fetch_results if not result.success)
+        
+        logger.info(f"Fetch completed: {len(plans) - failed_count}/{len(plans)} succeeded")
 
         # If some succeeded, continue with those results
         # Only show error if ALL failed
@@ -226,6 +254,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
         state.add_assistant_message(answer_text)
 
     except Exception as e:
+        logger.error(f"Error processing query: {str(e)}", exc_info=True)
         error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
         st.markdown(error_msg)
         state.add_assistant_message(error_msg)

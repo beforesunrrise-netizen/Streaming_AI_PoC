@@ -3,6 +3,7 @@ Exploration plan generation based on question intent
 Combines direct URL generation + Tavily search for comprehensive coverage
 """
 
+import logging
 from typing import List
 from dataclasses import dataclass
 
@@ -25,6 +26,8 @@ from endpoints import (
     get_finance_api_url
 )
 from tavily_search import get_tavily_urls_by_question_type
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,10 +59,13 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
     Returns:
         List of FetchPlan objects
     """
+    logger.info(f"Creating plan for question_type={intent.question_type}, stock={intent.stock_name} ({intent.stock_code})")
+    
     plans = []
 
     # If no stock code found, return empty plan
     if not intent.stock_code:
+        logger.warning(f"No stock code found in intent, returning empty plan")
         return plans
 
     code = intent.stock_code
@@ -106,10 +112,22 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
         # Talks/opinions will be searched via Tavily
 
     # Type D: News/disclosure - need news + disclosure
-    # Note: Direct news/disclosure URLs often return 404, rely on Tavily search
+    # Note: Direct news/disclosure URLs often return 404, but provide fallback
     elif question_type == QUESTION_TYPE_NEWS_DISCLOSURE:
-        # News and disclosures will be searched via Tavily
-        pass
+        # Add fallback news and disclosure URLs
+        plans.append(FetchPlan(
+            plan_id="D1",
+            description="뉴스 페이지 조회",
+            url=get_news_url(code),
+            parser_name="parse_news_list"
+        ))
+        plans.append(FetchPlan(
+            plan_id="D2",
+            description="공시 페이지 조회",
+            url=get_disclosure_url(code),
+            parser_name="parse_disclosure_list"
+        ))
+        # Additional URLs will be searched via Tavily
 
     # Type E: Other - basic stock info
     else:
@@ -131,11 +149,16 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
     # This helps discover pages that direct URL generation might miss
     # Especially important for news/disclosures/talks which often return 404
     if use_tavily:
-        tavily_urls = get_tavily_urls_by_question_type(
-            question_type=question_type,
-            stock_name=intent.stock_name,
-            stock_code=intent.stock_code
-        )
+        try:
+            tavily_urls = get_tavily_urls_by_question_type(
+                question_type=question_type,
+                stock_name=intent.stock_name,
+                stock_code=intent.stock_code
+            )
+        except Exception as e:
+            # If Tavily fails, continue with existing plans
+            logger.error(f"Tavily search failed, continuing with existing plans: {str(e)}", exc_info=True)
+            tavily_urls = []
 
         # Add Tavily URLs that aren't duplicates
         existing_urls = {plan.url for plan in plans}
@@ -170,6 +193,7 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
                 if tavily_plan_counter > max_tavily_additions:
                     break
 
+    logger.info(f"Created {len(plans)} plans for execution")
     return plans
 
 
