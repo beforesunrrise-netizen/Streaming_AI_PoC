@@ -9,13 +9,14 @@ from dotenv import load_dotenv
 
 from state import init_session_state
 from intent import analyze_intent, _extract_stock_name
-from config import get_env
+from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH, get_env
 from endpoints import get_search_url
 from parsers import parse_search_results
 from conversation import is_general_conversation, generate_conversational_response
-
-# Import LangGraph workflow
-from graph.workflow import run_workflow
+from planner import create_plan
+from daum_fetch import fetch
+from summarizer import summarize_results
+from answer import generate_answer
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +27,15 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Import LangGraph workflow (optional)
+try:
+    from graph.workflow import run_workflow
+    LANGGRAPH_AVAILABLE = True
+    logger.info("✅ LangGraph available - using advanced workflow")
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    logger.warning("⚠️ LangGraph not installed - using traditional workflow (install: pip install langgraph)")
 
 
 def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
@@ -479,7 +489,7 @@ with st.sidebar:
     
     show_steps = st.checkbox(
         "📊 처리 과정 보기",
-        value=False,  # 기본값을 False로 변경 - 깔끔한 ChatGPT 스타일
+        value=True,  # 기본값을 False로 변경 - 깔끔한 ChatGPT 스타일
         help="데이터 수집 및 분석 과정을 단계별로 표시합니다"
     )
     

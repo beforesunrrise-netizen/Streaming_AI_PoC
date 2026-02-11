@@ -217,6 +217,7 @@ def summarize_node(state: ChatbotState) -> Dict[str, Any]:
             {
                 'source_type': s.source_type,
                 'source_url': s.source_url,
+                'key_data': s.key_data,
                 'evidence_snippet': s.evidence_snippet
             }
             for s in summaries
@@ -290,6 +291,7 @@ def answer_node(state: ChatbotState) -> Dict[str, Any]:
             SourceSummary(
                 source_type=s['source_type'],
                 source_url=s['source_url'],
+                key_data=s.get('key_data', {}),
                 evidence_snippet=s['evidence_snippet']
             )
             for s in state['summaries']
