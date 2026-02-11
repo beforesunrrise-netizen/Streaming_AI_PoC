@@ -49,7 +49,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
                 st.markdown(f"- 질문 유형: **{intent.question_type}**")
                 st.markdown(f"- 대상 종목: **{intent.stock_name or '미확인'}** ({intent.stock_code or '미확인'})")
-                status.update(label="✅ 질문 분석 완료", state="complete")
+                status.update(label="✅ 질문 분석 완료", state="complete", expanded=False)
         else:
             # Silent analysis - ChatGPT style
             with st.spinner("🤔"):
@@ -115,7 +115,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                 if plans:
                     for i, plan in enumerate(plans, 1):
                         st.markdown(f"{i}. {plan.description}")
-                status.update(label="✅ 계획 수립 완료", state="complete")
+                status.update(label="✅ 계획 수립 완료", state="complete", expanded=False)
         else:
             plans = create_plan(intent)
 
@@ -163,7 +163,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
                     fetch_results.append((result, plan))
 
-                status.update(label="✅ 데이터 수집 완료", state="complete")
+                status.update(label="✅ 데이터 수집 완료", state="complete", expanded=False)
         else:
             # Silent data collection - ChatGPT style
             with st.spinner("💭 생각하는 중..."):
@@ -226,28 +226,46 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
             for s in summaries
         ]
 
-        # STEP 5: Generate answer (always show this step)
+        # STEP 4: Generate answer - 사고 과정을 expander로 감싸기
         if show_steps:
-            with st.status("✍️ 답변 생성 중...", expanded=False) as status:
+            # 사고 과정을 collapse 가능하게 표시
+            with st.expander("🤔 사고 과정 보기", expanded=False):
+                st.markdown("### [1] 질문 의도 분석")
+                st.markdown(f"- **질문 유형:** {intent.question_type}")
+                st.markdown(f"- **대상 종목:** {intent.stock_name or '미확인'} ({intent.stock_code or '미확인'})")
+                
+                st.markdown("### [2] 다음 금융 탐색 계획")
+                if plans:
+                    for i, plan in enumerate(plans, 1):
+                        st.markdown(f"{i}. {plan.description}")
+                
+                st.markdown("### [3] 다음 금융 스크랩 결과 요약")
+                if summaries:
+                    for i, summary in enumerate(summaries, 1):
+                        st.markdown(f"**Source {i}: {summary.source_type}**")
+                        st.markdown(f"```\n{summary.evidence_snippet[:300]}...\n```")
+            
+            # 최종 답변 생성 (LLM 사용)
+            with st.spinner("✍️ 답변 생성 중..."):
                 answer_text = generate_answer(
                     intent=intent,
                     plans=plans,
                     summaries=summaries,
                     use_llm=use_llm,
-                    show_details=True,  # Show all 4 steps
-                    chat_history=state.get_recent_messages(6)  # Include chat context
+                    show_details=False,  # 최종 답변만 표시 (사고 과정은 위 expander에 표시됨)
+                    chat_history=state.get_recent_messages(6)
                 )
-                status.update(label="✅ 답변 생성 완료", state="complete")
         else:
             # Simple spinner for final answer generation
-            answer_text = generate_answer(
-                intent=intent,
-                plans=plans,
-                summaries=summaries,
-                use_llm=use_llm,
-                show_details=False,  # Only show final answer (ChatGPT style)
-                chat_history=state.get_recent_messages(6)  # Include chat context
-            )
+            with st.spinner("💭 생각하는 중..."):
+                answer_text = generate_answer(
+                    intent=intent,
+                    plans=plans,
+                    summaries=summaries,
+                    use_llm=use_llm,
+                    show_details=False,  # Only show final answer (ChatGPT style)
+                    chat_history=state.get_recent_messages(6)  # Include chat context
+                )
 
         # Display answer directly (no placeholder needed)
         st.markdown(answer_text)
@@ -608,7 +626,7 @@ with st.sidebar:
     
     show_steps = st.checkbox(
         "📊 처리 과정 보기",
-        value=True,  # 기본값을 True 변경 - ChatGPT처럼 깔끔하게
+        value=False,  # 기본값을 False로 변경 - 깔끔한 ChatGPT 스타일
         help="데이터 수집 및 분석 과정을 단계별로 표시합니다"
     )
     
