@@ -19,7 +19,9 @@ from endpoints import (
     get_news_url,
     get_disclosure_url,
     get_talks_url,
-    get_stock_info_url
+    get_stock_info_url,
+    get_realtime_quote_api,
+    get_finance_api_url
 )
 
 
@@ -83,9 +85,27 @@ def create_plan(intent: IntentResult) -> List[FetchPlan]:
 
     # Type B: Price status - need price + quote
     elif question_type == QUESTION_TYPE_PRICE_STATUS:
+        # Strategy: Use chart API as primary source (more reliable)
+        # Chart API provides latest price in day candle data
         plans.append(FetchPlan(
             plan_id="B1",
-            description="현재 시세 및 호가 정보 확인",
+            description="차트 API로 최신 시세 확인",
+            url=get_chart_api_url(code, period="days"),
+            parser_name="parse_chart_for_price",
+            is_json=True
+        ))
+        # Try API endpoint as backup
+        plans.append(FetchPlan(
+            plan_id="B2",
+            description="실시간 시세 API 조회 (백업)",
+            url=get_finance_api_url(code),
+            parser_name="parse_api_quote",
+            is_json=True
+        ))
+        # HTML page as last resort
+        plans.append(FetchPlan(
+            plan_id="B3",
+            description="시세 페이지 조회 (최종)",
             url=get_price_url(code),
             parser_name="parse_price_page"
         ))

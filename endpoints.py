@@ -94,3 +94,30 @@ def get_stock_info_url(code: str) -> str:
     # Add 'A' prefix if not exists
     clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}/company"
+
+
+def get_realtime_quote_api(code: str) -> str:
+    """
+    Get realtime quote API endpoint (if available)
+    This is an internal API that Daum Finance might use
+    Args:
+        code: Stock code
+    Returns:
+        API URL
+    """
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
+    return f"https://finance.daum.net/api/quote/{clean_code}"
+
+
+def get_finance_api_url(code: str) -> str:
+    """
+    Alternative API endpoint for stock data
+    Args:
+        code: Stock code
+    Returns:
+        API URL
+    """
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
+    return f"https://finance.daum.net/api/quotes/{clean_code}"

@@ -72,53 +72,131 @@ def parse_price_page(html: str) -> Dict[str, Any]:
         soup = BeautifulSoup(html, 'lxml')
         data = {}
 
-        # Current price
-        price_elem = soup.select_one('.price')
-        if price_elem:
-            price_text = price_elem.get_text(strip=True).replace(',', '')
-            try:
-                data['current_price'] = int(price_text)
-            except ValueError:
-                data['current_price'] = price_text
+        # Try to extract JSON data from script tags (for React/SPA pages)
+        scripts = soup.find_all('script')
+        for script in scripts:
+            if script.string and 'tradePrice' in script.string:
+                import json
+                import re
+                
+                # Try to find JSON objects in script content
+                try:
+                    # Look for window.__INITIAL_STATE__ or similar patterns
+                    json_match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.+?\});', script.string, re.DOTALL)
+                    if not json_match:
+                        json_match = re.search(r'__NEXT_DATA__["\']?\s*type=["\']application/json["\']>(\{.+?\})</script>', script.string, re.DOTALL)
+                    
+                    if json_match:
+                        json_data = json.loads(json_match.group(1))
+                        # Extract data from JSON structure
+                        # This will need to be adjusted based on actual structure
+                        return _extract_price_from_json(json_data)
+                except:
+                    pass
 
-        # Change and change rate
-        change_elem = soup.select_one('.change')
-        if change_elem:
-            change_text = change_elem.get_text(strip=True)
-            data['change'] = change_text
+        # Fallback: Try multiple CSS selectors for different page structures
+        price_selectors = [
+            '.price',
+            '.txt_price',
+            '.num_price',
+            '[data-id="priceValue"]',
+            '[class*="price"]',
+            'span[class*="Price"]',
+            'em[class*="price"]'
+        ]
+        
+        for selector in price_selectors:
+            price_elem = soup.select_one(selector)
+            if price_elem:
+                price_text = price_elem.get_text(strip=True).replace(',', '')
+                try:
+                    data['current_price'] = int(price_text)
+                    break
+                except ValueError:
+                    data['current_price'] = price_text
+                    break
 
-        rate_elem = soup.select_one('.rate')
-        if rate_elem:
-            rate_text = rate_elem.get_text(strip=True)
-            data['change_rate'] = rate_text
+        # Change and change rate - try multiple selectors
+        change_selectors = ['.change', '.txt_change', '[class*="change"]']
+        for selector in change_selectors:
+            change_elem = soup.select_one(selector)
+            if change_elem:
+                data['change'] = change_elem.get_text(strip=True)
+                break
 
-        # Additional info from summary table
-        info_items = soup.select('.tb_summary tr')
-        for item in info_items:
-            th = item.select_one('th')
-            td = item.select_one('td')
+        rate_selectors = ['.rate', '.txt_rate', '[class*="rate"]']
+        for selector in rate_selectors:
+            rate_elem = soup.select_one(selector)
+            if rate_elem:
+                data['change_rate'] = rate_elem.get_text(strip=True)
+                break
 
-            if th and td:
-                key = th.get_text(strip=True)
-                value = td.get_text(strip=True)
+        # Additional info from summary table - try multiple selectors
+        table_selectors = [
+            '.tb_summary tr',
+            'table[class*="summary"] tr',
+            '[class*="info"] tr',
+            'dl[class*="info"]'
+        ]
+        
+        for table_selector in table_selectors:
+            info_items = soup.select(table_selector)
+            if info_items:
+                for item in info_items:
+                    th = item.select_one('th, dt')
+                    td = item.select_one('td, dd')
 
-                if '거래량' in key:
-                    data['volume'] = value
-                elif '거래대금' in key:
-                    data['transaction_amount'] = value
-                elif '시가' in key:
-                    data['open_price'] = value
-                elif '고가' in key:
-                    data['high_price'] = value
-                elif '저가' in key:
-                    data['low_price'] = value
-                elif '전일' in key:
-                    data['previous_close'] = value
+                    if th and td:
+                        key = th.get_text(strip=True)
+                        value = td.get_text(strip=True)
+
+                        if '거래량' in key:
+                            data['volume'] = value
+                        elif '거래대금' in key:
+                            data['transaction_amount'] = value
+                        elif '시가' in key:
+                            data['open_price'] = value
+                        elif '고가' in key:
+                            data['high_price'] = value
+                        elif '저가' in key:
+                            data['low_price'] = value
+                        elif '전일' in key:
+                            data['previous_close'] = value
+                break
 
         return data
 
     except Exception:
         return {}
+
+
+def _extract_price_from_json(json_data: dict) -> Dict[str, Any]:
+    """
+    Extract price data from JSON structure
+    """
+    data = {}
+    
+    # Try different common JSON structures
+    if isinstance(json_data, dict):
+        # Look for common keys
+        if 'tradePrice' in json_data:
+            data['current_price'] = json_data.get('tradePrice')
+        if 'change' in json_data:
+            data['change'] = json_data.get('change')
+        if 'changeRate' in json_data:
+            data['change_rate'] = json_data.get('changeRate')
+        if 'accTradeVolume' in json_data:
+            data['volume'] = json_data.get('accTradeVolume')
+        
+        # Recursively search nested structures
+        for key, value in json_data.items():
+            if isinstance(value, dict):
+                nested_data = _extract_price_from_json(value)
+                if nested_data:
+                    data.update(nested_data)
+                    break
+    
+    return data
 
 
 def parse_chart_json(json_data: Any) -> List[Dict[str, Any]]:
@@ -151,6 +229,58 @@ def parse_chart_json(json_data: Any) -> List[Dict[str, Any]]:
 
     except Exception:
         return []
+
+
+def parse_chart_for_price(json_data: Any) -> Dict[str, Any]:
+    """
+    Parse chart API data to extract latest price information
+    This converts chart data into a price-like format
+    
+    Args:
+        json_data: JSON response from chart API
+    Returns:
+        Dict with price data extracted from latest candle
+    """
+    try:
+        chart_data = parse_chart_json(json_data)
+        
+        if not chart_data:
+            return {}
+        
+        # Get the latest data point
+        latest = chart_data[-1]
+        
+        # Convert to price data format
+        data = {
+            'current_price': latest.get('close', 0),
+            'open_price': latest.get('open', 0),
+            'high_price': latest.get('high', 0),
+            'low_price': latest.get('low', 0),
+            'volume': latest.get('volume', 0),
+        }
+        
+        # Calculate change if we have at least 2 data points
+        if len(chart_data) >= 2:
+            previous = chart_data[-2]
+            prev_close = previous.get('close', 0)
+            curr_close = latest.get('close', 0)
+            
+            if prev_close > 0:
+                change = curr_close - prev_close
+                change_rate = (change / prev_close) * 100
+                
+                data['previous_close'] = prev_close
+                data['change'] = f"{change:+,}원" if change else "0원"
+                data['change_rate'] = f"{change_rate:+.2f}%"
+        
+        # Add data freshness info
+        data['date'] = latest.get('date', '')
+        data['data_source'] = 'chart_api'
+        
+        return data
+    
+    except Exception:
+        return {}
 
 
 def parse_news_list(html: str) -> List[Dict[str, str]]:
@@ -318,3 +448,62 @@ def extract_stock_code_from_html(html: str) -> Optional[str]:
 
     except Exception:
         return None
+
+
+def parse_api_quote(json_data: Any) -> Dict[str, Any]:
+    """
+    Parse API quote response (JSON format)
+    This handles responses from Daum Finance internal API
+    
+    Args:
+        json_data: JSON response from API
+    Returns:
+        Dict with price data
+    """
+    try:
+        if not isinstance(json_data, dict):
+            return {}
+        
+        data = {}
+        
+        # Check for common API response structures
+        # Structure 1: Direct data in root
+        if 'tradePrice' in json_data:
+            data['current_price'] = json_data.get('tradePrice')
+            data['change'] = json_data.get('change')
+            data['change_rate'] = json_data.get('changeRate')
+            data['volume'] = json_data.get('accTradeVolume')
+            data['open_price'] = json_data.get('openingPrice')
+            data['high_price'] = json_data.get('highPrice')
+            data['low_price'] = json_data.get('lowPrice')
+            data['previous_close'] = json_data.get('prevClosingPrice')
+        
+        # Structure 2: Data nested in 'data' key
+        elif 'data' in json_data:
+            nested = json_data['data']
+            if isinstance(nested, dict):
+                data['current_price'] = nested.get('tradePrice') or nested.get('price')
+                data['change'] = nested.get('change') or nested.get('changePrice')
+                data['change_rate'] = nested.get('changeRate') or nested.get('changeRatio')
+                data['volume'] = nested.get('accTradeVolume') or nested.get('volume')
+                data['open_price'] = nested.get('openingPrice') or nested.get('open')
+                data['high_price'] = nested.get('highPrice') or nested.get('high')
+                data['low_price'] = nested.get('lowPrice') or nested.get('low')
+                data['previous_close'] = nested.get('prevClosingPrice') or nested.get('previousClose')
+        
+        # Structure 3: Data nested in 'quote' or 'stock' key
+        elif 'quote' in json_data or 'stock' in json_data:
+            nested = json_data.get('quote') or json_data.get('stock')
+            if isinstance(nested, dict):
+                data['current_price'] = nested.get('tradePrice') or nested.get('price')
+                data['change'] = nested.get('change')
+                data['change_rate'] = nested.get('changeRate')
+                data['volume'] = nested.get('volume')
+        
+        # Clean up None values
+        data = {k: v for k, v in data.items() if v is not None}
+        
+        return data
+    
+    except Exception as e:
+        return {}

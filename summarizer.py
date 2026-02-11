@@ -34,20 +34,38 @@ def _summarize_price_data(data: Dict[str, Any]) -> str:
 
     parts = []
 
-    if 'current_price' in data:
-        parts.append(f"현재가 {data['current_price']:,}원")
+    if 'current_price' in data and data['current_price']:
+        price = data['current_price']
+        if isinstance(price, (int, float)):
+            parts.append(f"현재가 {price:,}원")
+        else:
+            parts.append(f"현재가 {price}")
 
     if 'change' in data and 'change_rate' in data:
         parts.append(f"전일비 {data['change']} ({data['change_rate']})")
 
-    if 'volume' in data:
-        parts.append(f"거래량 {data['volume']}")
+    if 'volume' in data and data['volume']:
+        volume = data['volume']
+        if isinstance(volume, (int, float)):
+            parts.append(f"거래량 {volume:,}")
+        else:
+            parts.append(f"거래량 {volume}")
 
-    if 'open_price' in data:
+    if 'open_price' in data and data['open_price']:
         parts.append(f"시가 {data['open_price']}")
 
     if 'high_price' in data and 'low_price' in data:
-        parts.append(f"고가 {data['high_price']}, 저가 {data['low_price']}")
+        if data['high_price'] and data['low_price']:
+            parts.append(f"고가 {data['high_price']}, 저가 {data['low_price']}")
+
+    # Add data source info if available
+    if 'data_source' in data:
+        if data['data_source'] == 'chart_api':
+            parts.append("(차트 API 기준)")
+    
+    # Add date info if available
+    if 'date' in data and data['date']:
+        parts.append(f"[{data['date']}]")
 
     return ", ".join(parts) if parts else "시세 정보를 확인할 수 없습니다."
 
@@ -172,25 +190,21 @@ def summarize_results(
 ) -> List[SourceSummary]:
     """
     Summarize all fetch results into evidence snippets
+    Only includes successful fetches with valid data
 
     Args:
         fetch_results: List of (FetchResult, FetchPlan) tuples
         plans: List of FetchPlan objects (for reference)
 
     Returns:
-        List of SourceSummary objects
+        List of SourceSummary objects (only successful ones)
     """
     summaries = []
 
     for fetch_result, plan in fetch_results:
         if not fetch_result.success:
-            # Add failed fetch as summary
-            summaries.append(SourceSummary(
-                source_url=fetch_result.url or plan.url,
-                source_type=plan.description,
-                key_data={},
-                evidence_snippet=f"데이터 수집 실패: {fetch_result.error_message}"
-            ))
+            # Skip failed fetches instead of adding them
+            # This allows graceful degradation
             continue
 
         # Parse based on parser_name
@@ -202,6 +216,16 @@ def summarize_results(
                 parsed_data = parsers.parse_price_page(fetch_result.content or "")
                 snippet = _summarize_price_data(parsed_data)
                 source_type = "시세 정보"
+
+            elif parser_name == "parse_chart_for_price":
+                parsed_data = parsers.parse_chart_for_price(fetch_result.json_data or {})
+                snippet = _summarize_price_data(parsed_data)
+                source_type = "시세 정보 (차트 API)"
+
+            elif parser_name == "parse_api_quote":
+                parsed_data = parsers.parse_api_quote(fetch_result.json_data or {})
+                snippet = _summarize_price_data(parsed_data)
+                source_type = "시세 정보 (API)"
 
             elif parser_name == "parse_news_list":
                 parsed_data = parsers.parse_news_list(fetch_result.content or "")
@@ -228,19 +252,18 @@ def summarize_results(
                 snippet = "알 수 없는 데이터 형식입니다."
                 source_type = plan.description
 
-            summaries.append(SourceSummary(
-                source_url=fetch_result.url or plan.url,
-                source_type=source_type,
-                key_data=parsed_data if isinstance(parsed_data, dict) else {"data": parsed_data},
-                evidence_snippet=snippet
-            ))
+            # Only add if we got valid data
+            if parsed_data or snippet != "시세 정보를 확인할 수 없습니다.":
+                summaries.append(SourceSummary(
+                    source_url=fetch_result.url or plan.url,
+                    source_type=source_type,
+                    key_data=parsed_data if isinstance(parsed_data, dict) else {"data": parsed_data},
+                    evidence_snippet=snippet
+                ))
 
         except Exception as e:
-            summaries.append(SourceSummary(
-                source_url=fetch_result.url or plan.url,
-                source_type=plan.description,
-                key_data={},
-                evidence_snippet=f"데이터 처리 실패: {str(e)}"
-            ))
+            # Skip parsing errors instead of adding them
+            # This allows graceful degradation
+            continue
 
     return summaries

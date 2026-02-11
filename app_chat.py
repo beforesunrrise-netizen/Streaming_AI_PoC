@@ -477,7 +477,10 @@ if user_input and not state.pending_choice.is_pending():
             
             # Check if all failed
             failed_count = sum(1 for result, _ in fetch_results if not result.success)
-            if failed_count == len(plans):
+            
+            # If some succeeded, continue with those results
+            # Only show error if ALL failed
+            if failed_count == len(plans) and failed_count > 0:
                 # Show detailed error for debugging
                 error_details = []
                 for result, plan in fetch_results:
@@ -495,6 +498,11 @@ if user_input and not state.pending_choice.is_pending():
                 response_placeholder.markdown(response)
                 state.add_assistant_message(response)
                 st.stop()
+            
+            elif failed_count > 0:
+                # Some failed but some succeeded - show warning
+                success_count = len(plans) - failed_count
+                st.warning(f"⚠️ 일부 데이터 소스에 접근할 수 없습니다 ({success_count}/{len(plans)} 성공). 사용 가능한 데이터로 답변합니다.")
             
             # STEP 4: Summarize
             summaries = summarize_results(fetch_results, plans)
