@@ -54,18 +54,15 @@ def _generate_final_answer_basic(
     price_data = None
     news_data = None
     talks_data = None
-    chart_data = None
 
     for summary in summaries:
-        # Match price data from any source (HTML, API, or Chart API)
+        # Match price data from any source (HTML, API)
         if "시세 정보" in summary.source_type:
             price_data = summary
         elif summary.source_type == "뉴스":
             news_data = summary
         elif summary.source_type == "토론/의견":
             talks_data = summary
-        elif summary.source_type == "차트":
-            chart_data = summary
 
     # Generate answer based on question type
     if question_type == QUESTION_TYPE_BUY_RECOMMENDATION:
@@ -74,11 +71,11 @@ def _generate_final_answer_basic(
         if price_data:
             answer += f"**현재 상태:**\n{price_data.evidence_snippet}\n\n"
 
-        if chart_data:
-            answer += f"**최근 추세:**\n{chart_data.evidence_snippet}\n\n"
-
         if news_data:
             answer += f"**최근 뉴스:**\n{news_data.evidence_snippet}\n\n"
+
+        if talks_data:
+            answer += f"**투자자 의견:**\n{talks_data.evidence_snippet}\n\n"
 
         answer += "**체크포인트:**\n"
         answer += "- 위 정보는 다음 금융에서 수집한 현재 시점 데이터입니다\n"
@@ -158,35 +155,50 @@ def _generate_final_answer_llm(
             for summary in summaries
         ])
 
-        prompt_text = f"""당신은 다음 금융 데이터만을 사용하는 투자 정보 도우미입니다.
-**절대 외부 지식이나 학습된 정보를 사용하지 마세요.**
+        prompt_text = f"""당신은 다음 금융(finance.daum.net) 데이터 기반 투자 정보 도우미입니다.
 
-아래 근거 스니펫만을 바탕으로 초보 투자자가 이해하기 쉽게 답변을 생성하세요.
+**핵심 원칙:**
+1. 아래 제공된 다음 금융 데이터만 사용하세요
+2. 외부 지식, 학습된 정보, 인터넷 검색 결과를 절대 사용하지 마세요
+3. 제공된 데이터에 없는 내용은 "확인되지 않음" 또는 "데이터 없음"으로 표시하세요
 
-질문 유형: {intent.question_type}
-종목: {intent.stock_name} ({intent.stock_code})
+**질문 정보:**
+- 질문 유형: {intent.question_type}
+- 대상 종목: {intent.stock_name} ({intent.stock_code})
 
-근거 스니펫:
+**다음 금융에서 수집한 데이터:**
 {evidence}
 
-다음 형식으로 답변하세요:
+**답변 작성 지침:**
+아래 형식으로 초보 투자자가 이해하기 쉽게 작성하되, 반드시 제공된 다음 금융 데이터만 활용하세요.
 
 **[한 줄 요약]**
-(핵심 내용을 한 문장으로)
+(다음 금융 데이터에서 확인된 핵심 내용을 한 문장으로 요약)
 
-**[현재 상태]**
-(근거 스니펫의 데이터를 바탕으로 현재 상태 설명)
+**[다음 금융 데이터 분석]**
+(제공된 근거 스니펫의 데이터를 바탕으로 현재 상태를 구체적으로 설명)
+- 시세 정보가 있다면: 현재가, 등락률, 거래량 등을 명확히 제시
+- 뉴스 정보가 있다면: 주요 뉴스 제목과 내용을 요약
+- 의견 정보가 있다면: 투자자들의 의견 동향을 객관적으로 전달
 
-**[체크포인트]**
-- 확인한 데이터 출처 명시 (다음 금융)
-- 투자 판단 시 주의사항
-- 추가로 확인하면 좋을 정보
+**[참고사항]**
+- 본 정보는 다음 금융에서 수집한 데이터입니다
+- 투자 판단은 본인의 책임하에 신중히 결정하세요
+- 추가 확인이 필요한 정보: (기업 재무제표, 업종 동향 등)
 
-**중요:**
-- 확정적 예측이나 추천은 절대 금지
-- "~할 것이다", "~하세요" 같은 표현 금지
-- "현재 상태는 ~입니다", "~를 확인해보세요" 형식 사용
-"""
+**작성 시 주의사항:**
+❌ 금지:
+- "~할 것입니다", "~할 가능성이 높습니다" 같은 예측성 표현
+- "매수하세요", "투자하세요" 같은 권유 표현
+- 제공되지 않은 데이터나 외부 지식 언급
+
+✅ 권장:
+- "다음 금융 데이터에 따르면 ~입니다"
+- "현재 시점 기준 ~로 확인됩니다"
+- "~를 추가로 확인해보시는 것을 권장합니다"
+- 데이터에 없는 내용은 명확히 "확인되지 않음"으로 표시
+
+답변을 작성해주세요:"""
 
         # Use Anthropic Claude if available
         if get_env('ANTHROPIC_API_KEY'):
@@ -285,8 +297,39 @@ def generate_answer(
         output.append("질문에 답변할 수 있는 충분한 데이터를 수집하지 못했습니다.")
         output.append("종목 코드를 확인하거나, 다시 시도해주세요.\n")
 
-    # Footer
+    # Reference section - clickable links to source pages
     output.append("\n---")
+    output.append("### 📎 참고한 다음 금융 페이지\n")
+
+    if summaries:
+        # Collect unique URLs
+        reference_urls = []
+        seen_urls = set()
+
+        for summary in summaries:
+            url = summary.source_url
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                reference_urls.append({
+                    'type': summary.source_type,
+                    'url': url
+                })
+
+        # Display as clickable links
+        if reference_urls:
+            for i, ref in enumerate(reference_urls[:7], 1):  # Limit to 7 references
+                # Extract a friendly name from URL or use source type
+                friendly_name = ref['type'] or f"참고 {i}"
+                output.append(f"{i}. [{friendly_name}]({ref['url']})")
+        else:
+            output.append("- 참고 URL 없음")
+    else:
+        output.append("- 수집된 데이터 없음")
+
+    output.append("")
+
+    # Footer
+    output.append("---")
     output.append("**⚠️ 주의사항:**")
     output.append("- 본 정보는 다음 금융(finance.daum.net) 데이터를 기반으로 합니다")
     output.append("- 투자 판단 및 결과에 대한 책임은 투자자 본인에게 있습니다")

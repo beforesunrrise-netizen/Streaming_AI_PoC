@@ -17,6 +17,7 @@
 - ✅ **GPT 스타일 대화형 UI**: ChatGPT처럼 자연스러운 대화 인터페이스
 - ✅ **멀티턴 대화 지원**: 종목을 기억하여 연속 질문 가능
 - ✅ **다음 금융 전용**: 오직 finance.daum.net 도메인의 정보만 사용
+- ✅ **Tavily 웹 검색 통합**: 뉴스/공시/토론 정보를 지능적으로 탐색
 - ✅ **다중 사용자 지원**: 여러 사람이 동시에 접속하여 사용 가능 (각자 독립적인 세션)
 - ✅ **모바일 친화적**: 반응형 디자인으로 모바일에서도 편리하게 사용
 - ✅ **선택적 LLM 통합**: OpenAI API로 더 자연스러운 답변 생성
@@ -32,7 +33,7 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정 (선택)
 
-LLM 기능을 사용하려면 `.env` 파일을 생성하고 API 키를 설정하세요.
+LLM 기능과 Tavily 검색을 사용하려면 `.env` 파일을 생성하고 API 키를 설정하세요.
 
 ```bash
 # .env 파일 생성
@@ -45,11 +46,18 @@ cp .env.example .env
 # LLM 사용 여부 (true/false)
 USE_LLM=true
 
-# OpenAI API 키
+# OpenAI API 키 (선택)
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Tavily API 키 (권장)
+# 뉴스/공시/토론 검색에 필요
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxx
 ```
 
-**주의:** LLM을 사용하지 않아도 기본 키워드 기반 모드로 동작합니다.
+**주의:** 
+- LLM을 사용하지 않아도 기본 키워드 기반 모드로 동작합니다.
+- **Tavily API 키는 강력히 권장됩니다** - 뉴스/공시/토론 검색에 필수적입니다.
+- Tavily가 없으면 시세 정보만 조회 가능합니다.
 
 ### 3. 실행 방법
 
@@ -163,6 +171,7 @@ Daou_chatbot/
 ├── endpoints.py           # 다음 금융 URL 관리
 ├── daum_fetch.py          # Allowlist 기반 Fetcher
 ├── parsers.py             # HTML/JSON 파서
+├── tavily_search.py       # Tavily 웹 검색 통합
 ├── intent.py              # 질문 의도 분석
 ├── planner.py             # 탐색 계획 생성
 ├── summarizer.py          # 결과 요약
@@ -207,6 +216,7 @@ Daou_chatbot/
 - **백엔드**: Python 3.8+
 - **HTTP 클라이언트**: requests
 - **HTML 파싱**: BeautifulSoup4
+- **웹 검색**: Tavily (뉴스/공시/토론 탐색)
 - **LLM**: OpenAI API (선택)
 - **캐싱**: 메모리 기반 TTL 캐시
 - **세션 관리**: Streamlit session_state
@@ -223,6 +233,7 @@ Daou_chatbot/
 
 - 인터넷 연결 확인
 - 다음 금융 사이트 접속 가능 여부 확인
+- Tavily API 키가 설정되어 있는지 확인 (뉴스/공시/토론 조회 시)
 - 잠시 후 다시 시도
 
 ### 다른 사람이 접속이 안 됩니다
@@ -236,6 +247,13 @@ Daou_chatbot/
 - `.env` 파일에 API 키가 올바르게 설정되어 있는지 확인
 - API 키 유효성 및 잔액 확인
 - `USE_LLM=false`로 설정하여 기본 모드로 사용 가능
+
+### Tavily 검색이 작동하지 않음
+
+- `.env` 파일에 `TAVILY_API_KEY`가 설정되어 있는지 확인
+- [https://tavily.com](https://tavily.com)에서 API 키 발급
+- `pip install tavily-python` 패키지 설치 확인
+- Tavily가 없어도 시세 정보는 조회 가능
 
 ## 🚀 배포 옵션
 
@@ -312,3 +330,9 @@ MIT License
 - 멀티턴 대화 지원 (종목 자동 기억)
 - 다중 사용자 동시 접속 가능
 - 모바일 최적화
+- **Tavily 웹 검색 통합** (뉴스/공시/토론 스마트 탐색)
+
+**📝 최근 업데이트 (2026-02-11):**
+- 차트 API 제거 (403 에러로 인한 접근 불가)
+- Tavily 검색 강화로 뉴스/공시/토론 404 문제 해결
+- 상세 내용: [CHART_API_REMOVAL.md](./CHART_API_REMOVAL.md)

@@ -4,6 +4,7 @@ urllib3>=2.0.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 python-dotenv>=1.0.0
+tavily-python>=0.3.0
 
 # Optional LLM dependencies
 anthropic>=0.18.0

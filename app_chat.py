@@ -20,6 +20,213 @@ from conversation import is_general_conversation, generate_conversational_respon
 # Load environment variables
 load_dotenv()
 
+
+def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
+    """
+    Process stock-related query
+    """
+    response_placeholder = st.empty()
+
+    try:
+        # STEP 1: Analyze intent
+        if show_steps:
+                with st.status("🔍 질문 분석 중...", expanded=False) as status:
+                    intent = analyze_intent(user_input, use_llm=use_llm)
+
+                    # Check memory for stock context
+                    if not intent.stock_code and state.memory.has_stock_context():
+                        intent.stock_code = state.memory.last_stock_code
+                        intent.stock_name = state.memory.last_stock_name
+
+                    st.markdown(f"- 질문 유형: **{intent.question_type}**")
+                    st.markdown(f"- 대상 종목: **{intent.stock_name or '미확인'}** ({intent.stock_code or '미확인'})")
+                    status.update(label="✅ 질문 분석 완료", state="complete")
+            else:
+                intent = analyze_intent(user_input, use_llm=use_llm)
+
+                if not intent.stock_code and state.memory.has_stock_context():
+                    intent.stock_code = state.memory.last_stock_code
+                    intent.stock_name = state.memory.last_stock_name
+
+            # If no stock code, try to search
+            if not intent.stock_code:
+                stock_name = _extract_stock_name(user_input)
+
+                if stock_name:
+                    with st.spinner("🔍 종목 검색 중..."):
+                        search_url = get_search_url(stock_name)
+                        search_result = fetch(search_url, use_cache=True, cache_ttl=120)
+
+                        if search_result.success:
+                            candidates = parse_search_results(search_result.content)
+
+                            if len(candidates) == 0:
+                                response = f"❌ '{stock_name}' 종목을 찾을 수 없습니다.\n\n정확한 종목명 또는 6자리 코드를 입력해주세요."
+                                response_placeholder.markdown(response)
+                                state.add_assistant_message(response)
+                                st.stop()
+
+                            elif len(candidates) == 1:
+                                intent.stock_code = candidates[0]['code']
+                                intent.stock_name = candidates[0]['name']
+                                st.success(f"✅ {intent.stock_name} 종목을 찾았습니다!")
+
+                            else:
+                                # Multiple results - set pending choice
+                                state.pending_choice.candidates = candidates
+                                state.pending_choice.original_user_query = user_input
+                                state.pending_choice.next_action = intent.question_type
+
+                                response = f"🔍 '{stock_name}' 검색 결과가 **{len(candidates)}개** 있습니다.\n\n아래에서 선택해주세요."
+                                response_placeholder.markdown(response)
+                                state.add_assistant_message(response)
+                                st.rerun()
+                else:
+                    response = "❌ 종목을 알 수 없습니다.\n\n**종목명** 또는 **6자리 코드**를 입력해주세요.\n\n예: `삼성전자`, `005930`"
+                    response_placeholder.markdown(response)
+                    state.add_assistant_message(response)
+                    st.stop()
+
+            # Update memory
+            state.memory.update(
+                stock_code=intent.stock_code,
+                stock_name=intent.stock_name,
+                question_type=intent.question_type
+            )
+
+            # STEP 2: Create plan
+            if show_steps:
+                with st.status("📋 정보 수집 계획 수립 중...", expanded=False) as status:
+                    plans = create_plan(intent)
+
+                    if plans:
+                        for i, plan in enumerate(plans, 1):
+                            st.markdown(f"{i}. {plan.description}")
+                    status.update(label="✅ 계획 수립 완료", state="complete")
+            else:
+                plans = create_plan(intent)
+
+            if not plans:
+                response = "❌ 정보 수집 계획을 생성할 수 없습니다."
+                response_placeholder.markdown(response)
+                state.add_assistant_message(response)
+                st.stop()
+
+            # STEP 3: Fetch data
+            if show_steps:
+                with st.status("📊 데이터 수집 중...", expanded=False) as status:
+                    fetch_results = []
+
+                    for i, plan in enumerate(plans):
+                        st.markdown(f"⏳ {plan.description}...")
+
+                        # Determine cache TTL
+                        if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
+                            cache_ttl = CACHE_TTL_NEWS
+                        elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
+                            cache_ttl = CACHE_TTL_PRICE
+                        else:
+                            cache_ttl = CACHE_TTL_SEARCH
+
+                        result = fetch(
+                            url=plan.url,
+                            use_cache=True,
+                            cache_ttl=cache_ttl,
+                            is_json=plan.is_json
+                        )
+
+                        fetch_results.append((result, plan))
+
+                    status.update(label="✅ 데이터 수집 완료", state="complete")
+            else:
+                with st.spinner("📊 다음 금융에서 정보를 가져오는 중..."):
+                    fetch_results = []
+
+                    for plan in plans:
+                        if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
+                            cache_ttl = CACHE_TTL_NEWS
+                        elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
+                            cache_ttl = CACHE_TTL_PRICE
+                        else:
+                            cache_ttl = CACHE_TTL_SEARCH
+
+                        result = fetch(
+                            url=plan.url,
+                            use_cache=True,
+                            cache_ttl=cache_ttl,
+                            is_json=plan.is_json
+                        )
+
+                        fetch_results.append((result, plan))
+
+            # Check if all failed
+            failed_count = sum(1 for result, _ in fetch_results if not result.success)
+
+            # If some succeeded, continue with those results
+            # Only show error if ALL failed
+            if failed_count == len(plans) and failed_count > 0:
+                # Show detailed error for debugging
+                error_details = []
+                for result, plan in fetch_results:
+                    if not result.success:
+                        error_details.append(f"- {plan.description}: {result.error_message or 'Unknown error'}")
+
+                response = f"❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n"
+
+                # Add debug info in development/debugging
+                if get_env('DEBUG_MODE', 'false').lower() == 'true':
+                    response += "**디버그 정보:**\n" + "\n".join(error_details) + "\n\n"
+
+                response += "잠시 후 다시 시도해주세요."
+
+                response_placeholder.markdown(response)
+                state.add_assistant_message(response)
+                st.stop()
+
+            elif failed_count > 0:
+                # Some failed but some succeeded - show warning
+                success_count = len(plans) - failed_count
+                st.warning(f"⚠️ 일부 데이터 소스에 접근할 수 없습니다 ({success_count}/{len(plans)} 성공). 사용 가능한 데이터로 답변합니다.")
+
+            # STEP 4: Summarize
+            summaries = summarize_results(fetch_results, plans)
+
+            # Store in memory
+            state.memory.last_sources = [
+                {"type": s.source_type, "snippet": s.evidence_snippet}
+                for s in summaries
+            ]
+
+            # STEP 5: Generate answer
+            if show_steps:
+                with st.status("✍️ 답변 생성 중...", expanded=False) as status:
+                    answer_text = generate_answer(
+                        intent=intent,
+                        plans=plans,
+                        summaries=summaries,
+                        use_llm=use_llm
+                    )
+                    status.update(label="✅ 답변 생성 완료", state="complete")
+            else:
+                with st.spinner("✍️ 답변 생성 중..."):
+                    answer_text = generate_answer(
+                        intent=intent,
+                        plans=plans,
+                        summaries=summaries,
+                        use_llm=use_llm
+                    )
+
+            # Display answer
+            response_placeholder.markdown(answer_text)
+
+            # Add to history
+            state.add_assistant_message(answer_text)
+
+        except Exception as e:
+            error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
+            response_placeholder.markdown(error_msg)
+            state.add_assistant_message(error_msg)
+
 # Page configuration
 st.set_page_config(
     page_title="다음 금융 투자 챗봇",
@@ -164,13 +371,13 @@ with st.sidebar:
     
     use_llm = st.checkbox(
         "🤖 AI 답변 사용",
-        value=get_env('USE_LLM', 'false').lower() == 'true',
+        value=True,  # 기본값을 True로 변경
         help="OpenAI API를 사용하여 더 자연스러운 답변을 생성합니다"
     )
     
     show_steps = st.checkbox(
         "📊 처리 과정 보기",
-        value=False,
+        value=True,  # 기본값을 True로 변경
         help="데이터 수집 및 분석 과정을 단계별로 표시합니다"
     )
     
@@ -366,213 +573,6 @@ if user_input and not state.pending_choice.is_pending():
         # Process stock-related query
         with st.chat_message("assistant"):
             _process_stock_query(user_input, state, show_steps, use_llm)
-
-
-def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
-    """
-    Process stock-related query
-    """
-    response_placeholder = st.empty()
-    
-    try:
-        # STEP 1: Analyze intent
-        if show_steps:
-                with st.status("🔍 질문 분석 중...", expanded=False) as status:
-                    intent = analyze_intent(user_input, use_llm=use_llm)
-                    
-                    # Check memory for stock context
-                    if not intent.stock_code and state.memory.has_stock_context():
-                        intent.stock_code = state.memory.last_stock_code
-                        intent.stock_name = state.memory.last_stock_name
-                    
-                    st.markdown(f"- 질문 유형: **{intent.question_type}**")
-                    st.markdown(f"- 대상 종목: **{intent.stock_name or '미확인'}** ({intent.stock_code or '미확인'})")
-                    status.update(label="✅ 질문 분석 완료", state="complete")
-            else:
-                intent = analyze_intent(user_input, use_llm=use_llm)
-                
-                if not intent.stock_code and state.memory.has_stock_context():
-                    intent.stock_code = state.memory.last_stock_code
-                    intent.stock_name = state.memory.last_stock_name
-            
-            # If no stock code, try to search
-            if not intent.stock_code:
-                stock_name = _extract_stock_name(user_input)
-                
-                if stock_name:
-                    with st.spinner("🔍 종목 검색 중..."):
-                        search_url = get_search_url(stock_name)
-                        search_result = fetch(search_url, use_cache=True, cache_ttl=120)
-                        
-                        if search_result.success:
-                            candidates = parse_search_results(search_result.content)
-                            
-                            if len(candidates) == 0:
-                                response = f"❌ '{stock_name}' 종목을 찾을 수 없습니다.\n\n정확한 종목명 또는 6자리 코드를 입력해주세요."
-                                response_placeholder.markdown(response)
-                                state.add_assistant_message(response)
-                                st.stop()
-                            
-                            elif len(candidates) == 1:
-                                intent.stock_code = candidates[0]['code']
-                                intent.stock_name = candidates[0]['name']
-                                st.success(f"✅ {intent.stock_name} 종목을 찾았습니다!")
-                            
-                            else:
-                                # Multiple results - set pending choice
-                                state.pending_choice.candidates = candidates
-                                state.pending_choice.original_user_query = user_input
-                                state.pending_choice.next_action = intent.question_type
-                                
-                                response = f"🔍 '{stock_name}' 검색 결과가 **{len(candidates)}개** 있습니다.\n\n아래에서 선택해주세요."
-                                response_placeholder.markdown(response)
-                                state.add_assistant_message(response)
-                                st.rerun()
-                else:
-                    response = "❌ 종목을 알 수 없습니다.\n\n**종목명** 또는 **6자리 코드**를 입력해주세요.\n\n예: `삼성전자`, `005930`"
-                    response_placeholder.markdown(response)
-                    state.add_assistant_message(response)
-                    st.stop()
-            
-            # Update memory
-            state.memory.update(
-                stock_code=intent.stock_code,
-                stock_name=intent.stock_name,
-                question_type=intent.question_type
-            )
-            
-            # STEP 2: Create plan
-            if show_steps:
-                with st.status("📋 정보 수집 계획 수립 중...", expanded=False) as status:
-                    plans = create_plan(intent)
-                    
-                    if plans:
-                        for i, plan in enumerate(plans, 1):
-                            st.markdown(f"{i}. {plan.description}")
-                    status.update(label="✅ 계획 수립 완료", state="complete")
-            else:
-                plans = create_plan(intent)
-            
-            if not plans:
-                response = "❌ 정보 수집 계획을 생성할 수 없습니다."
-                response_placeholder.markdown(response)
-                state.add_assistant_message(response)
-                st.stop()
-            
-            # STEP 3: Fetch data
-            if show_steps:
-                with st.status("📊 데이터 수집 중...", expanded=False) as status:
-                    fetch_results = []
-                    
-                    for i, plan in enumerate(plans):
-                        st.markdown(f"⏳ {plan.description}...")
-                        
-                        # Determine cache TTL
-                        if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
-                            cache_ttl = CACHE_TTL_NEWS
-                        elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
-                            cache_ttl = CACHE_TTL_PRICE
-                        else:
-                            cache_ttl = CACHE_TTL_SEARCH
-                        
-                        result = fetch(
-                            url=plan.url,
-                            use_cache=True,
-                            cache_ttl=cache_ttl,
-                            is_json=plan.is_json
-                        )
-                        
-                        fetch_results.append((result, plan))
-                    
-                    status.update(label="✅ 데이터 수집 완료", state="complete")
-            else:
-                with st.spinner("📊 다음 금융에서 정보를 가져오는 중..."):
-                    fetch_results = []
-                    
-                    for plan in plans:
-                        if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
-                            cache_ttl = CACHE_TTL_NEWS
-                        elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
-                            cache_ttl = CACHE_TTL_PRICE
-                        else:
-                            cache_ttl = CACHE_TTL_SEARCH
-                        
-                        result = fetch(
-                            url=plan.url,
-                            use_cache=True,
-                            cache_ttl=cache_ttl,
-                            is_json=plan.is_json
-                        )
-                        
-                        fetch_results.append((result, plan))
-            
-            # Check if all failed
-            failed_count = sum(1 for result, _ in fetch_results if not result.success)
-            
-            # If some succeeded, continue with those results
-            # Only show error if ALL failed
-            if failed_count == len(plans) and failed_count > 0:
-                # Show detailed error for debugging
-                error_details = []
-                for result, plan in fetch_results:
-                    if not result.success:
-                        error_details.append(f"- {plan.description}: {result.error_message or 'Unknown error'}")
-                
-                response = f"❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n"
-                
-                # Add debug info in development/debugging
-                if get_env('DEBUG_MODE', 'false').lower() == 'true':
-                    response += "**디버그 정보:**\n" + "\n".join(error_details) + "\n\n"
-                
-                response += "잠시 후 다시 시도해주세요."
-                
-                response_placeholder.markdown(response)
-                state.add_assistant_message(response)
-                st.stop()
-            
-            elif failed_count > 0:
-                # Some failed but some succeeded - show warning
-                success_count = len(plans) - failed_count
-                st.warning(f"⚠️ 일부 데이터 소스에 접근할 수 없습니다 ({success_count}/{len(plans)} 성공). 사용 가능한 데이터로 답변합니다.")
-            
-            # STEP 4: Summarize
-            summaries = summarize_results(fetch_results, plans)
-            
-            # Store in memory
-            state.memory.last_sources = [
-                {"type": s.source_type, "snippet": s.evidence_snippet}
-                for s in summaries
-            ]
-            
-            # STEP 5: Generate answer
-            if show_steps:
-                with st.status("✍️ 답변 생성 중...", expanded=False) as status:
-                    answer_text = generate_answer(
-                        intent=intent,
-                        plans=plans,
-                        summaries=summaries,
-                        use_llm=use_llm
-                    )
-                    status.update(label="✅ 답변 생성 완료", state="complete")
-            else:
-                with st.spinner("✍️ 답변 생성 중..."):
-                    answer_text = generate_answer(
-                        intent=intent,
-                        plans=plans,
-                        summaries=summaries,
-                        use_llm=use_llm
-                    )
-            
-            # Display answer
-            response_placeholder.markdown(answer_text)
-            
-            # Add to history
-            state.add_assistant_message(answer_text)
-            
-        except Exception as e:
-            error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
-            response_placeholder.markdown(error_msg)
-            state.add_assistant_message(error_msg)
 
 # Footer
 st.markdown("---")
