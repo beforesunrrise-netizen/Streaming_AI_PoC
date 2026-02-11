@@ -236,10 +236,10 @@ if not state.chat_history:
     
     # Example questions
     examples = [
-        {"icon": "📈", "text": "삼성전자 현재가는?"},
-        {"icon": "📰", "text": "카카오 최근 뉴스는?"},
-        {"icon": "💬", "text": "네이버 투자자 의견은?"},
-        {"icon": "📊", "text": "현대차 공시 있어?"},
+        {"icon": "📈", "text": "키움증권 지금 사면 좋을까?"},
+        {"icon": "📰", "text": "삼성전자 거래 현황?"},
+        {"icon": "💬", "text": "현대차 관련 사람들 의견이 어때?"},
+        {"icon": "📊", "text": "네이버 주가는?"},
     ]
     
     cols = st.columns(len(examples))
