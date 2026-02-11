@@ -33,6 +33,11 @@ class FetchPlan:
     url: str
     parser_name: str
     is_json: bool = False
+    
+    @property
+    def source_type(self) -> str:
+        """Alias for description for backward compatibility"""
+        return self.description
 
 
 def create_plan(intent: IntentResult) -> List[FetchPlan]:
