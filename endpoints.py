@@ -23,8 +23,8 @@ def get_price_url(code: str) -> str:
     Returns:
         Price page URL
     """
-    # Remove 'A' prefix if exists
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}"
 
 
@@ -37,7 +37,8 @@ def get_chart_api_url(code: str, period: str = "days") -> str:
     Returns:
         Chart API URL
     """
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/api/charts/{clean_code}/{period}"
 
 
@@ -50,7 +51,8 @@ def get_news_url(code: str, page: int = 1) -> str:
     Returns:
         News list URL
     """
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}/news?page={page}"
 
 
@@ -63,7 +65,8 @@ def get_disclosure_url(code: str, page: int = 1) -> str:
     Returns:
         Disclosure list URL
     """
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}/disclosures?page={page}"
 
 
@@ -75,7 +78,8 @@ def get_talks_url(code: str) -> str:
     Returns:
         Talks page URL
     """
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}/talks"
 
 
@@ -87,5 +91,6 @@ def get_stock_info_url(code: str) -> str:
     Returns:
         Stock info URL
     """
-    clean_code = code.replace('A', '') if code.startswith('A') else code
+    # Add 'A' prefix if not exists
+    clean_code = code if code.startswith('A') else f'A{code}'
     return f"https://finance.daum.net/quotes/{clean_code}/company"
