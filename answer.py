@@ -57,7 +57,8 @@ def _generate_final_answer_basic(
     chart_data = None
 
     for summary in summaries:
-        if summary.source_type == "시세 정보":
+        # Match price data from any source (HTML, API, or Chart API)
+        if "시세 정보" in summary.source_type:
             price_data = summary
         elif summary.source_type == "뉴스":
             news_data = summary
