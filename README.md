@@ -271,6 +271,32 @@ docker run -p 8501:8501 daou-chatbot
 3. **빠른 질문**: 현재 종목이 설정되어 있으면 빠른 질문 버튼 사용
 4. **처리 과정 보기**: 사이드바에서 "처리 과정 보기" 체크박스 활성화
 
+## 🔧 문제 해결
+
+### Streamlit Cloud에서 데이터를 가져올 수 없는 경우
+
+1. **디버그 모드 활성화**
+   - Streamlit Cloud 대시보드의 Secrets에 `DEBUG_MODE = "true"` 추가
+   - 자세한 에러 메시지 확인
+
+2. **연결 테스트**
+   ```bash
+   streamlit run test_connectivity.py
+   ```
+
+3. **상세 가이드**
+   - 📋 [STREAMLIT_CLOUD_DEBUG.md](./STREAMLIT_CLOUD_DEBUG.md) 참조
+   - 프록시 설정, 대안 방법 등 포함
+
+### 로컬 환경에서 테스트
+```bash
+# 디버그 모드로 실행
+DEBUG_MODE=true streamlit run app_chat.py
+
+# 네트워크 연결 테스트
+streamlit run test_connectivity.py
+```
+
 ## 📝 라이선스
 
 MIT License
