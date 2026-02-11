@@ -162,7 +162,7 @@ if st.button("🔍 질문하기", type="primary"):
                 status_text.empty()
 
                 # Step 4: Summarize results
-                summaries = summarize_results(fetch_results, plans)
+                summaries = summarize_results(fetch_results, plans, stock_code=intent.stock_code)
 
                 # Step 5: Generate answer
                 answer_text = generate_answer(

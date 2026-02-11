@@ -41,6 +41,7 @@ class FetchPlan:
     parser_name: str
     is_json: bool = False
     title: str = None  # Optional: pre-fetched title (for Tavily news results)
+    content: str = None  # Optional: pre-fetched content (for Tavily results)
 
     @property
     def source_type(self) -> str:
@@ -97,7 +98,8 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
                     description="최신 뉴스",
                     url=news.url,
                     parser_name="tavily_news",
-                    title=news.title
+                    title=news.title,
+                    content=news.content  # ✅ Include content from Tavily
                 ))
 
             logger.info(f"[Planner] Added {len(news_results)} news articles from Tavily")
@@ -152,7 +154,8 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
                     description="최신 뉴스",
                     url=news.url,
                     parser_name="tavily_news",  # Special parser that uses pre-fetched title
-                    title=news.title  # Store the title from Tavily
+                    title=news.title,  # Store the title from Tavily
+                    content=news.content  # ✅ Include content from Tavily
                 ))
 
             logger.info(f"[Planner] Added {len(news_results)} news articles from Tavily")

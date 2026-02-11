@@ -107,9 +107,9 @@ class ConversationState:
         """
         self.chat_history.append(ChatMessage(role='assistant', content=content))
 
-    def get_recent_messages(self, n: int = 10) -> List[ChatMessage]:
+    def get_recent_messages(self, n: int = 6) -> List[ChatMessage]:
         """
-        Get recent n messages
+        Get recent n messages (default: 6 = 3 turns)
         """
         return self.chat_history[-n:] if len(self.chat_history) > n else self.chat_history
 

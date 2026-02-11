@@ -110,7 +110,7 @@ def test_samsung_query():
     if success_count > 0:
         print("[STEP 4] 데이터 요약 중...")
         try:
-            summaries = summarize_results(fetch_results, plans)
+            summaries = summarize_results(fetch_results, plans, stock_code=intent.stock_code)
             print(f"  - 총 {len(summaries)}개 요약 생성됨")
             
             for i, summary in enumerate(summaries, 1):

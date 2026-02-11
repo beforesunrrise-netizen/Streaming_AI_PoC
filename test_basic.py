@@ -136,7 +136,7 @@ for plan in plans[:2]:  # 처음 2개만 테스트
     print(f"  {status} {plan.description}")
 
 print("\n4단계: 요약 생성...")
-summaries = summarize_results(fetch_results, plans[:2])
+summaries = summarize_results(fetch_results, plans[:2], stock_code=intent.stock_code)
 print(f"  [OK] 완료 - {len(summaries)}개 요약")
 
 print("\n5단계: 최종 답변 생성...")

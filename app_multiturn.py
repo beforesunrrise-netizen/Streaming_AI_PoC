@@ -321,7 +321,7 @@ if user_input and not state.pending_choice.is_pending():
                 st.stop()
 
             # STEP 3.5: Summarize results
-            summaries = summarize_results(fetch_results, plans)
+            summaries = summarize_results(fetch_results, plans, stock_code=intent.stock_code)
 
             # Store summaries in memory
             state.memory.last_sources = [

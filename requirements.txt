@@ -6,6 +6,9 @@ lxml>=4.9.0
 python-dotenv>=1.0.0
 tavily-python>=0.3.0
 
+# 다음 금융 스크래핑 (requests + BeautifulSoup 사용)
+# ✅ Streamlit Cloud 호환 (Selenium 불필요)
+
 # LangGraph dependencies
 langgraph>=0.2.0
 langchain-core>=0.3.0

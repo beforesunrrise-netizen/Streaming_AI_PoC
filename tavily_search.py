@@ -17,6 +17,7 @@ class TavilySearchResult:
     title: str
     url: str
     score: float = 0.0
+    content: str = ""  # Raw content from Tavily
 
 
 def search_daum_finance_urls(
@@ -75,23 +76,25 @@ def search_daum_finance_urls(
             search_depth="basic",
             max_results=max_results,
             include_domains=["finance.daum.net"],
-            include_answer=False,  # Don't use Tavily's answer
-            include_raw_content=False,  # Don't use Tavily's content
+            include_answer=False,  # Don't use Tavily's answer (we analyze ourselves)
+            include_raw_content=True,  # ✅ Include content for better data
         )
 
-        # Extract URLs only - ignore content/summary
+        # Extract URLs with content
         results = []
         for item in response.get('results', []):
             url = item.get('url', '')
             title = item.get('title', '')
             score = item.get('score', 0.0)
+            content = item.get('raw_content', '')  # ✅ Get content from Tavily
 
             # Verify domain (double-check)
             if 'finance.daum.net' in url:
                 results.append(TavilySearchResult(
                     title=title,
                     url=url,
-                    score=score
+                    score=score,
+                    content=content  # ✅ Store full content
                 ))
 
         logger.info(f"✅ [Tavily] Returned {len(results)} URLs")

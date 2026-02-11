@@ -197,7 +197,6 @@ def _classify_question_llm(text: str) -> tuple:
             response = client.chat.completions.create(
                 model=LLM_MODEL_OPENAI,
                 max_tokens=LLM_MAX_TOKENS,
-                temperature=LLM_TEMPERATURE,
                 messages=[{"role": "user", "content": prompt_text}]
             )
 

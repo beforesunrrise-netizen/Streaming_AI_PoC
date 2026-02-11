@@ -65,8 +65,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                 pass
             
             # Run workflow and show intermediate steps
-            with st.expander("🤔 사고 과정 보기", expanded=False):
-                st.markdown("### LangGraph Workflow 실행 중...")
+            with st.expander("🧠 사고 과정 보기 (전문 애널리스트 분석)", expanded=False):
+                st.markdown("### 생각중.....")
                 
                 # Execute workflow
                 final_state = run_workflow(
@@ -78,22 +78,56 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                 
                 # Show workflow results
                 if final_state.get('intent_analyzed'):
-                    st.markdown("### [1] 질문 의도 분석 ✅")
+                    st.markdown("### [1단계] 질문 의도 분석 ✅")
                     st.markdown(f"- **질문 유형:** {final_state.get('question_type')}")
                     st.markdown(f"- **대상 종목:** {final_state.get('stock_name')} ({final_state.get('stock_code')})")
+                    st.markdown("---")
                 
                 if final_state.get('plans_created'):
-                    st.markdown("### [2] 정보 수집 계획 ✅")
-                    st.markdown(f"- **계획 수:** {len(final_state.get('fetch_plans', []))}")
+                    st.markdown("### [2단계] 정보 수집 계획 수립 ✅")
+                    plans = final_state.get('fetch_plans', [])
+                    st.markdown(f"- **수집 계획 수:** {len(plans)}개")
+                    
+                    # 계획 상세 표시
+                    for i, plan in enumerate(plans[:5], 1):
+                        plan_title = plan.get('title', 'N/A')
+                        plan_url = plan.get('url', '')
+                        st.markdown(f"  {i}. {plan_title}")
+                    st.markdown("---")
                 
                 if final_state.get('data_collected'):
-                    st.markdown("### [3] 데이터 수집 ✅")
-                    st.markdown(f"- **성공:** {final_state.get('successful_fetches')}/{final_state.get('successful_fetches') + final_state.get('failed_fetches')}")
+                    st.markdown("### [3단계] 데이터 수집 완료 ✅")
+                    success = final_state.get('successful_fetches', 0)
+                    failed = final_state.get('failed_fetches', 0)
+                    st.markdown(f"- **수집 성공:** {success}/{success + failed}개")
+                    st.markdown("---")
                 
                 if final_state.get('summaries_created'):
-                    st.markdown("### [4] 데이터 요약 ✅")
-                    st.markdown(f"- **요약 수:** {len(final_state.get('summaries', []))}")
-                    st.markdown(f"- **토큰 수:** ~{final_state.get('total_tokens')} tokens")
+                    st.markdown("### [4단계] 전문 애널리스트 분석 ✅")
+                    summaries = final_state.get('summaries', [])
+                    st.markdown(f"- **분석 데이터 소스:** {len(summaries)}개")
+                    st.markdown(f"- **총 데이터 토큰:** ~{final_state.get('total_tokens')} tokens")
+                    
+                    # 수집된 데이터 상세 표시
+                    st.markdown("\n**📋 수집된 데이터:**")
+                    for i, summary in enumerate(summaries[:5], 1):
+                        source_type = summary.get('source_type', 'Unknown')
+                        st.markdown(f"  {i}. [{source_type}] ✓")
+                        
+                        # 간단한 프리뷰
+                        snippet = summary.get('evidence_snippet', '')
+                        if snippet:
+                            preview = snippet[:100].replace('\n', ' ').strip()
+                            st.caption(f"   → {preview}...")
+                    
+                    st.markdown("\n**🔍 분석 프레임워크:**")
+                    st.markdown("  ✓ 시세 분석 (Technical Analysis)")
+                    st.markdown("  ✓ 뉴스·리포트 분석 (Fundamental Analysis)")
+                    st.markdown("  ✓ 시장 반응 분석 (Market Sentiment)")
+                    st.markdown("  ✓ 종합 판단 (Synthesis)")
+                    st.markdown("---")
+                
+                st.markdown("### [5단계] 최종 투자 의견 생성 중... ⏳")
             
             with st.spinner("✍️ 최종 답변 생성 중..."):
                 pass
@@ -121,13 +155,25 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
             state.add_assistant_message(response)
             return
         
-        # Update memory
+        # Update memory and check if stock changed
+        stock_changed = False
         if final_state.get('stock_code'):
+            old_stock_code = state.memory.last_stock_code if state.memory.has_stock_context() else None
+            new_stock_code = final_state['stock_code']
+            
+            # Check if stock changed
+            if old_stock_code and old_stock_code != new_stock_code:
+                stock_changed = True
+            
             state.memory.update(
-                stock_code=final_state['stock_code'],
+                stock_code=new_stock_code,
                 stock_name=final_state['stock_name'],
                 question_type=final_state['question_type']
             )
+            
+            # Notify user if stock changed
+            if stock_changed:
+                st.info(f"🔄 종목이 **{final_state['stock_name']} ({new_stock_code})** 으로 변경되었습니다.")
         
         # Display final answer
         answer_text = final_state.get('final_answer', '')
@@ -144,7 +190,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
 # Page configuration
 st.set_page_config(
-    page_title="다음 금융 투자 챗봇",
+    page_title="키움 금융 투자 챗봇",
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -231,41 +277,45 @@ st.markdown("""
         color: #2C3E50;
     }
     
-    /* Input container - fixed at bottom */
+    /* Input container - fixed at bottom with stronger emphasis */
     .stChatInputContainer {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         z-index: 999;
-        border-top: 1px solid #E8EAF6;
+        border-top: 2px solid #667EEA;
         padding: 1rem;
-        background: #FFFFFF;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F5F7FA 100%);
         max-width: 48rem;
         margin: 0 auto;
-        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 -4px 16px rgba(102, 126, 234, 0.15);
     }
     
-    /* Input box styling */
+    /* Input box styling - more prominent */
     .stChatInput > div {
-        background-color: #F5F7FA;
-        border: 1px solid #E8EAF6;
+        background-color: #FFFFFF;
+        border: 2px solid #667EEA;
         border-radius: 1.5rem;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
     }
     
     .stChatInput textarea {
-        background-color: #F5F7FA;
+        background-color: #FFFFFF;
         color: #2C3E50;
         border: none;
+        font-size: 1rem;
+        font-weight: 500;
     }
     
     .stChatInput textarea:focus {
         border-color: #667EEA;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
     }
     
     .stChatInput textarea::placeholder {
-        color: #A0AEC0;
+        color: #667EEA;
+        font-weight: 400;
     }
     
     /* Button styling - Modern rounded buttons */
@@ -527,29 +577,28 @@ with st.sidebar:
     # Guide - 더 간결하게
     with st.expander("📖 사용 가이드"):
         st.markdown("""
-        **💡 질문 예시:**
+        **💡 이렇게 물어보세요:**
         - 삼성전자 현재가는?
-        - 뉴스 보여줘
-        - 투자자들 의견은?
-        - 최근 공시 있어?
+        - 네이버 뉴스 보여줘
+        - 카카오 매수하면 좋을까?
         
-        **🎯 특징:**
-        - 후속 질문 시 종목 자동 기억
-        - 다음 금융 실시간 데이터
-        - 자연스러운 대화 방식
+        **✨ 특징:**
+        - 새 종목 질문 시 자동 변경
+        - 빠른 질문 버튼으로 편리하게
+        - 쉽고 간단한 답변
         """)
     
     st.markdown("---")
     st.caption("⚠️ 투자 판단은 본인 책임입니다")
 
 # Main title
-st.title("💬 다음 금융 투자 챗봇")
+st.title("💬 키움 금융 투자 챗봇")
 
 # Welcome screen (only if no chat history)
 if not state.chat_history:
     st.markdown("""
     <div class="welcome-container">
-        <div class="welcome-title">💬 다음 금융 투자 챗봇</div>
+        <div class="welcome-title">💬 키움 금융 투자 챗봇</div>
         <div class="welcome-subtitle">종목 정보를 실시간으로 조회하고 투자 판단을 도와드립니다</div>
     </div>
     """, unsafe_allow_html=True)
@@ -560,19 +609,19 @@ if not state.chat_history:
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📈 키움증권 지금 사면 좋을까?", key="ex1", use_container_width=True):
-            st.session_state['example_question'] = "키움증권 지금 사면 좋을까?"
+        if st.button("📈 삼성전자 지금 사면 좋을까?", key="ex1", use_container_width=True):
+            st.session_state['example_question'] = "삼성전자 지금 사면 좋을까?"
             st.rerun()
-        if st.button("💬 현대차 관련 사람들 의견이 어때?", key="ex3", use_container_width=True):
-            st.session_state['example_question'] = "현대차 관련 사람들 의견이 어때?"
+        if st.button("💬 현대차 투자자 의견은?", key="ex3", use_container_width=True):
+            st.session_state['example_question'] = "현대차 투자자 의견은?"
             st.rerun()
     
     with col2:
-        if st.button("📰 삼성전자 거래 현황?", key="ex2", use_container_width=True):
-            st.session_state['example_question'] = "삼성전자 거래 현황?"
+        if st.button("📰 네이버 뉴스 보여줘", key="ex2", use_container_width=True):
+            st.session_state['example_question'] = "네이버 뉴스 보여줘"
             st.rerun()
-        if st.button("📊 네이버 주가는?", key="ex4", use_container_width=True):
-            st.session_state['example_question'] = "네이버 주가는?"
+        if st.button("💰 카카오 현재가는?", key="ex4", use_container_width=True):
+            st.session_state['example_question'] = "카카오 현재가는?"
             st.rerun()
 
 # Display chat history
@@ -666,20 +715,24 @@ if state.memory.has_stock_context() and not state.pending_choice.is_pending():
     
     st.markdown("---")
 
-# Handle quick input
+# Chat input at the bottom - 항상 렌더링
+placeholder_text = "💬 추가 질문을 입력하세요... (예: 목표가는?, 다른 종목 알려줘)" if state.chat_history else "메시지를 입력하세요... (예: 삼성전자 현재가는?)"
+
+user_input = st.chat_input(
+    placeholder_text,
+    key="chat_input",
+    disabled=state.pending_choice.is_pending()
+)
+
+# Handle quick input or example question
+is_quick_question = False
 if 'quick_input' in st.session_state:
     user_input = st.session_state['quick_input']
+    is_quick_question = True  # 빠른 질문 플래그 설정
     del st.session_state['quick_input']
 elif 'example_question' in st.session_state:
     user_input = st.session_state['example_question']
     del st.session_state['example_question']
-else:
-    # Chat input at the bottom
-    user_input = st.chat_input(
-        "메시지를 입력하세요...",
-        key="chat_input",
-        disabled=state.pending_choice.is_pending()
-    )
 
 # Process user input
 if user_input and not state.pending_choice.is_pending():
@@ -689,8 +742,8 @@ if user_input and not state.pending_choice.is_pending():
     with st.chat_message("user"):
         st.markdown(user_input)
     
-    # Check if it's a general conversation
-    if is_general_conversation(user_input):
+    # 빠른 질문이거나 일반 대화인 경우 간단하게 처리
+    if is_quick_question or is_general_conversation(user_input):
         # Prepare stock context for conversational response
         stock_ctx = None
         if state.memory.has_stock_context():
@@ -710,9 +763,11 @@ if user_input and not state.pending_choice.is_pending():
         
         st.markdown(response)
         state.add_assistant_message(response)
+        st.rerun()  # 빠른 질문 버튼이 즉시 나타나도록 페이지 새로고침
     else:
         # Process stock-related query
         _process_stock_query(user_input, state, show_steps, use_llm)
+        st.rerun()  # 빠른 질문 버튼이 즉시 나타나도록 페이지 새로고침
 
 # Footer - 더 간결하게
 st.markdown("---")

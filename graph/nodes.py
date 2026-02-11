@@ -81,7 +81,8 @@ def plan_node(state: ChatbotState) -> Dict[str, Any]:
                 'url': plan.url,
                 'parser_name': plan.parser_name,
                 'is_json': plan.is_json,
-                'title': plan.title
+                'title': plan.title,
+                'content': plan.content if hasattr(plan, 'content') else None
             }
             for plan in plans
         ]
@@ -195,7 +196,8 @@ def summarize_node(state: ChatbotState) -> Dict[str, Any]:
                 url=plan_dict['url'],
                 parser_name=plan_dict['parser_name'],
                 is_json=plan_dict.get('is_json', False),
-                title=plan_dict.get('title')
+                title=plan_dict.get('title'),
+                content=plan_dict.get('content')  # ✅ Include content
             )
             plans.append(plan)
             
@@ -209,8 +211,16 @@ def summarize_node(state: ChatbotState) -> Dict[str, Any]:
             
             fetch_results.append((result, plan))
         
-        # Summarize using existing logic
-        summaries = summarize_results(fetch_results, plans)
+        # Summarize using existing logic (with realtime stock data if available)
+        stock_code = state.get('stock_code')
+        stock_name = state.get('stock_name')
+        summaries = summarize_results(
+            fetch_results, 
+            plans,
+            stock_code=stock_code,
+            stock_name=stock_name,
+            include_realtime=True
+        )
         
         # Convert summaries to dict format
         summary_dicts = [
@@ -282,7 +292,8 @@ def answer_node(state: ChatbotState) -> Dict[str, Any]:
                 url=p['url'],
                 parser_name=p['parser_name'],
                 is_json=p.get('is_json', False),
-                title=p.get('title')
+                title=p.get('title'),
+                content=p.get('content')  # ✅ Include content
             )
             for p in state['fetch_plans']
         ]

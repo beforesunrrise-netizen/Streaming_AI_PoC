@@ -94,29 +94,32 @@ def generate_conversational_response(
     if stock_context:
         context_text = f"\n현재 대화 중인 종목: {stock_context.get('name', '없음')} ({stock_context.get('code', '없음')})"
     
+    # Get current date
+    from datetime import datetime
+    current_date = datetime.now().strftime('%Y년 %m월 %d일')
+    
     # Create prompt
-    prompt = f"""당신은 친근하고 도움이 되는 다음 금융 투자 챗봇입니다.
+    prompt = f"""당신은 친절한 주식 도우미입니다. 이전 대화를 바탕으로 간단하고 쉽게 답변해주세요.
 
-**역할:**
-- 사용자와 자연스럽게 대화합니다
-- 주식/투자에 관한 질문에는 다음 금융 데이터 기반으로 답변할 수 있음을 안내합니다
-- 친절하고 간결하게 응답합니다
+**오늘 날짜:** {current_date}
 
-**대화 기록:**
+**이전 대화:**
 {history_text}
 
-**현재 상황:**{context_text}
+**현재 종목:**{context_text}
 
-**사용자 입력:** {user_input}
+**사용자 질문:** {user_input}
 
-**응답 가이드:**
-1. 인사말에는 친근하게 답하고 무엇을 도와드릴지 물어봅니다
-2. 감사 인사에는 자연스럽게 응대합니다
-3. 일반 질문에는 챗봇의 기능을 간단히 설명합니다
-4. 2-3문장으로 간결하게 답변합니다
-5. 이모지는 적절히 사용합니다 (😊, 📈, 💡 등)
+**답변 규칙:**
+- **결론/답을 먼저 말하고**, 그 다음에 이유 설명
+- {current_date} 기준 정보임을 명시
+- 이전 대화 내용을 참고해서 답변
+- 초보자도 이해하기 쉽게 간단명료하게
+- 2-3문장으로 핵심만 전달
+- 전문 용어는 피하고 쉬운 말로
+- 직접적인 투자 권유는 하지 마세요
 
-자연스럽게 응답해주세요:"""
+간단하게 답변해주세요:"""
 
     try:
         # Use Anthropic Claude
@@ -143,7 +146,6 @@ def generate_conversational_response(
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 max_tokens=500,
-                temperature=0.7,
                 messages=[{"role": "user", "content": prompt}]
             )
             

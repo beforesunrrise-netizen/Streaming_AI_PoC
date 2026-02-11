@@ -128,7 +128,6 @@ def smart_summarize_with_llm(summaries: List[Dict[str, str]], max_tokens: int = 
             response = client.chat.completions.create(
                 model="gpt-4o-mini",  # Use cheaper model for summarization
                 max_tokens=max_tokens,
-                temperature=0.3,
                 messages=[{
                     "role": "user",
                     "content": f"""다음은 다음 금융에서 수집한 데이터입니다. 핵심 정보만 간결하게 요약해주세요.

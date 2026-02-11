@@ -285,36 +285,100 @@ def parse_chart_for_price(json_data: Any) -> Dict[str, Any]:
 
 def parse_news_list(html: str) -> List[Dict[str, str]]:
     """
-    Parse news list page
+    Parse news list page - tries multiple selectors for robustness
     Args:
         html: News page HTML
     Returns:
-        List of {title, date, link} dicts
+        List of {title, date, link, summary} dicts
     """
     try:
         soup = BeautifulSoup(html, 'lxml')
         results = []
 
-        # Find news items
-        items = soup.select('.newsList .item_news')
+        # Try multiple selectors for different page structures
+        item_selectors = [
+            '.newsList .item_news',           # Standard news list
+            '.news_list .item',               # Alternative structure
+            '.list_news .item',               # Another variant
+            'ul[class*="news"] li',           # Generic news list
+            'div[class*="news"][class*="item"]',  # Div-based items
+            'article[class*="news"]',         # Article-based structure
+        ]
+        
+        items = []
+        for selector in item_selectors:
+            items = soup.select(selector)
+            if items:
+                break
+        
+        if not items:
+            # Fallback: Try to find any links with news-related patterns
+            items = soup.select('a[href*="/news/"]')
 
         for item in items:
             try:
-                # Title and link
-                link_elem = item.select_one('.link_news')
+                # Title and link - try multiple selectors
+                link_elem = None
+                title_selectors = [
+                    '.link_news',
+                    'a.link',
+                    'a[class*="title"]',
+                    'a[class*="news"]',
+                    'h3 a',
+                    'h4 a',
+                    'a'
+                ]
+                
+                for selector in title_selectors:
+                    link_elem = item.select_one(selector) if item.name != 'a' else item
+                    if link_elem and link_elem.get_text(strip=True):
+                        break
+                
                 if not link_elem:
                     continue
 
                 title = link_elem.get_text(strip=True)
                 link = link_elem.get('href', '')
+                
+                # Skip if title is too short (likely not a real news title)
+                if len(title) < 10:
+                    continue
 
-                # Date
-                date_elem = item.select_one('.txt_date')
-                date = date_elem.get_text(strip=True) if date_elem else ''
+                # Date - try multiple selectors
+                date = ''
+                date_selectors = [
+                    '.txt_date',
+                    '.date',
+                    'span[class*="date"]',
+                    'time',
+                    '.info_date'
+                ]
+                
+                for selector in date_selectors:
+                    date_elem = item.select_one(selector)
+                    if date_elem:
+                        date = date_elem.get_text(strip=True)
+                        break
 
-                # Summary (if available)
-                summary_elem = item.select_one('.txt_summary')
-                summary = summary_elem.get_text(strip=True) if summary_elem else ''
+                # Summary - try multiple selectors
+                summary = ''
+                summary_selectors = [
+                    '.txt_summary',
+                    '.summary',
+                    'p[class*="summary"]',
+                    'p[class*="desc"]',
+                    '.description',
+                    'p'
+                ]
+                
+                for selector in summary_selectors:
+                    summary_elem = item.select_one(selector)
+                    if summary_elem:
+                        summary_text = summary_elem.get_text(strip=True)
+                        # Only use if substantial (not just date or short text)
+                        if len(summary_text) > 20:
+                            summary = summary_text[:300]  # Limit to 300 chars
+                            break
 
                 results.append({
                     'title': title,
