@@ -478,7 +478,20 @@ if user_input and not state.pending_choice.is_pending():
             # Check if all failed
             failed_count = sum(1 for result, _ in fetch_results if not result.success)
             if failed_count == len(plans):
-                response = "❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n잠시 후 다시 시도해주세요."
+                # Show detailed error for debugging
+                error_details = []
+                for result, plan in fetch_results:
+                    if not result.success:
+                        error_details.append(f"- {plan.source_type}: {result.error_message or 'Unknown error'}")
+                
+                response = f"❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n"
+                
+                # Add debug info in development/debugging
+                if get_env('DEBUG_MODE', 'false').lower() == 'true':
+                    response += "**디버그 정보:**\n" + "\n".join(error_details) + "\n\n"
+                
+                response += "잠시 후 다시 시도해주세요."
+                
                 response_placeholder.markdown(response)
                 state.add_assistant_message(response)
                 st.stop()
