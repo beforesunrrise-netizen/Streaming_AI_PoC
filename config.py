@@ -15,9 +15,23 @@ ALLOWED_DOMAINS = [
 CACHE_TTL_PRICE = 60      # 1 minute for price data
 CACHE_TTL_NEWS = 300      # 5 minutes for news
 CACHE_TTL_SEARCH = 120    # 2 minutes for search results
+CACHE_TTL_DEFAULT = 300   # Default cache TTL (5 minutes)
 
 # User agent
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# HTTP request settings
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+}
+
+DEFAULT_TIMEOUT = 10      # Request timeout in seconds
+RETRY_DELAY = 1           # Delay between retries in seconds
+MAX_RETRIES = 2           # Maximum number of retries
 
 # Question type constants
 QUESTION_TYPE_BUY_RECOMMENDATION = "A_매수판단형"
