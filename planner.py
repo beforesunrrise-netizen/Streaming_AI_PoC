@@ -131,14 +131,22 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
 
     # Type E: Other - basic stock info
     else:
+        # Try API first for better data
         plans.append(FetchPlan(
             plan_id="E1",
+            description="실시간 시세 API 조회",
+            url=get_finance_api_url(code),
+            parser_name="parse_api_quote",
+            is_json=True
+        ))
+        plans.append(FetchPlan(
+            plan_id="E2",
             description="기본 종목 정보 확인",
             url=get_price_url(code),
             parser_name="parse_price_page"
         ))
         plans.append(FetchPlan(
-            plan_id="E2",
+            plan_id="E3",
             description="종목 상세 정보 확인",
             url=get_stock_info_url(code),
             parser_name="parse_price_page"  # Reuse price parser for now
@@ -150,8 +158,8 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
     # Especially important for news/disclosures/talks which often return 404
     if use_tavily:
         try:
-            logger.info(f"🔍 [Planner] Requesting Tavily URLs for {intent.stock_name}")
-            print(f"🔍 [Planner] Using Tavily to find additional URLs for {intent.stock_name}")
+            logger.info(f"[Planner] Requesting Tavily URLs for {intent.stock_name}")
+            print(f"[Planner] Using Tavily to find additional URLs for {intent.stock_name}")
 
             tavily_urls = get_tavily_urls_by_question_type(
                 question_type=question_type,
@@ -159,13 +167,13 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
                 stock_code=intent.stock_code
             )
 
-            logger.info(f"✅ [Planner] Tavily returned {len(tavily_urls)} URLs")
-            print(f"✅ [Planner] Tavily found {len(tavily_urls)} additional URLs")
+            logger.info(f"[Planner] Tavily returned {len(tavily_urls)} URLs")
+            print(f"[Planner] Tavily found {len(tavily_urls)} additional URLs")
 
         except Exception as e:
             # If Tavily fails, continue with existing plans
-            logger.error(f"❌ [Planner] Tavily search failed: {str(e)}", exc_info=True)
-            print(f"❌ [Planner] Tavily search failed: {str(e)}")
+            logger.error(f"[Planner] Tavily search failed: {str(e)}", exc_info=True)
+            print(f"[Planner] Tavily search failed: {str(e)}")
             tavily_urls = []
 
         # Add Tavily URLs that aren't duplicates

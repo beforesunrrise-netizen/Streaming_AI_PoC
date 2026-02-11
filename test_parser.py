@@ -1,127 +1,58 @@
 """
-Test parser to check current Daum Finance HTML structure
+파서 테스트 - API JSON 데이터 파싱
 """
 
-from daum_fetch import fetch
-from bs4 import BeautifulSoup
+import sys
+import io
 import json
 
-# Test URL
-url = "https://finance.daum.net/quotes/A005930"
+# UTF-8 출력 설정
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-print(f"Fetching: {url}\n")
-result = fetch(url, use_cache=False)
+from daum_fetch import fetch
+from endpoints import get_finance_api_url
+from parsers import parse_api_quote
+from summarizer import _summarize_price_data
 
-if result.success:
-    print(f"✅ Success! Status: {result.status_code}")
-    print(f"Content length: {len(result.content)} bytes\n")
+def test_parser():
+    """파서 테스트"""
+    print("=" * 80)
+    print("파서 테스트 - API JSON 데이터 파싱")
+    print("=" * 80)
     
-    # Parse HTML
-    soup = BeautifulSoup(result.content, 'lxml')
+    code = "005930"
+    url = get_finance_api_url(code)
     
-    print("=" * 60)
-    print("PAGE TITLE")
-    print("=" * 60)
-    print(soup.title.string if soup.title else "No title")
-    print()
+    print(f"\n[1] API 호출: {url}")
+    result = fetch(url, use_cache=False, is_json=True)
     
-    print("=" * 60)
-    print("CHECKING FOR REACT/SPA")
-    print("=" * 60)
-    print(f"Has 'data-reactroot': {'data-reactroot' in result.content}")
-    print(f"Has 'react' in content: {'react' in result.content.lower()}")
-    print(f"Has '__NEXT_DATA__': {'__NEXT_DATA__' in result.content}")
-    print()
+    if not result.success:
+        print(f"[FAIL] API 호출 실패: {result.error_message}")
+        return
     
-    # Try to find price element with different selectors
-    print("=" * 60)
-    print("SEARCHING FOR PRICE DATA")
-    print("=" * 60)
+    print(f"[OK] API 호출 성공")
+    print(f"\n[2] 원본 JSON 데이터:")
+    print(json.dumps(result.json_data, ensure_ascii=False, indent=2)[:500])
     
-    selectors_to_try = [
-        '.price',
-        '[class*="price"]',
-        '[data-test="price"]',
-        '.txt_price',
-        '.num_price',
-        '#priceValue',
-    ]
+    print(f"\n[3] 파서 실행: parse_api_quote()")
+    parsed_data = parse_api_quote(result.json_data)
     
-    for selector in selectors_to_try:
-        elements = soup.select(selector)
-        if elements:
-            print(f"✅ Found with selector '{selector}':")
-            for elem in elements[:3]:  # Show first 3
-                print(f"  - {elem.get_text(strip=True)}")
-        else:
-            print(f"❌ Not found: {selector}")
+    print(f"\n[4] 파싱 결과:")
+    if parsed_data:
+        print("[OK] 파싱 성공!")
+        for key, value in parsed_data.items():
+            print(f"  {key}: {value}")
+    else:
+        print("[FAIL] 파싱 실패 - 빈 딕셔너리 반환")
+        return
     
-    print()
+    print(f"\n[5] 요약 생성: _summarize_price_data()")
+    snippet = _summarize_price_data(parsed_data)
+    print(f"\n요약 결과:")
+    print(snippet)
     
-    # Check for JSON data in script tags
-    print("=" * 60)
-    print("CHECKING SCRIPT TAGS FOR JSON DATA")
-    print("=" * 60)
-    
-    scripts = soup.find_all('script')
-    print(f"Found {len(scripts)} script tags")
-    
-    for i, script in enumerate(scripts):
-        if script.string and ('symbolCode' in script.string or 'tradePrice' in script.string or 'quotes' in script.string):
-            print(f"\n📍 Script tag #{i} contains relevant data:")
-            content = script.string.strip()
-            if len(content) > 500:
-                print(content[:500] + "...[truncated]")
-            else:
-                print(content)
-            
-            # Try to parse as JSON
-            try:
-                # Look for JSON objects
-                import re
-                json_matches = re.findall(r'\{[^{}]*(?:"symbolCode"|"tradePrice"|"quotes")[^{}]*\}', content)
-                if json_matches:
-                    print("\n  Extracted JSON snippets:")
-                    for match in json_matches[:2]:
-                        print(f"  {match}")
-            except:
-                pass
-    
-    print()
-    
-    # Check for specific classes/IDs that might contain data
-    print("=" * 60)
-    print("CHECKING COMMON DATA CONTAINERS")
-    print("=" * 60)
-    
-    containers = [
-        ('stockInfo', 'class'),
-        ('stock-info', 'class'),
-        ('priceInfo', 'class'),
-        ('price-info', 'class'),
-        ('quote', 'class'),
-        ('stockContent', 'id'),
-        ('root', 'id'),
-    ]
-    
-    for name, attr_type in containers:
-        if attr_type == 'class':
-            elements = soup.select(f'.{name}')
-        else:
-            elements = soup.select(f'#{name}')
-        
-        if elements:
-            print(f"✅ Found element with {attr_type}='{name}':")
-            for elem in elements[:1]:
-                text = elem.get_text(strip=True)
-                if len(text) > 200:
-                    print(f"  {text[:200]}...")
-                else:
-                    print(f"  {text}")
-        else:
-            print(f"❌ Not found: {attr_type}='{name}'")
+    print("\n" + "=" * 80)
 
-else:
-    print(f"❌ Failed!")
-    print(f"Error: {result.error_message}")
-    print(f"Status code: {result.status_code}")
+
+if __name__ == "__main__":
+    test_parser()
