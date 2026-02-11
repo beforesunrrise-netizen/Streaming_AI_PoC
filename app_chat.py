@@ -609,16 +609,16 @@ if not state.chat_history:
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📈 삼성전자 지금 사면 좋을까?", key="ex1", use_container_width=True):
-            st.session_state['example_question'] = "삼성전자 지금 사면 좋을까?"
+        if st.button("📈 키움증권 지금 사면 좋을까?", key="ex1", use_container_width=True):
+            st.session_state['example_question'] = "키움증권 지금 사면 좋을까?"
             st.rerun()
-        if st.button("💬 현대차 투자자 의견은?", key="ex3", use_container_width=True):
-            st.session_state['example_question'] = "현대차 투자자 의견은?"
+        if st.button("💬 삼성전자 거래 현황", key="ex3", use_container_width=True):
+            st.session_state['example_question'] = "삼성전자 거래 현황"
             st.rerun()
     
     with col2:
-        if st.button("📰 네이버 뉴스 보여줘", key="ex2", use_container_width=True):
-            st.session_state['example_question'] = "네이버 뉴스 보여줘"
+        if st.button("📰 현대차 관련 사람들 의견이 어때?", key="ex2", use_container_width=True):
+            st.session_state['example_question'] = "현대차 관련 사람들 의견이 어때?"
             st.rerun()
         if st.button("💰 카카오 현재가는?", key="ex4", use_container_width=True):
             st.session_state['example_question'] = "카카오 현재가는?"
