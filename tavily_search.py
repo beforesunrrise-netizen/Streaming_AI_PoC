@@ -49,7 +49,8 @@ def search_daum_finance_urls(
         # Get API key
         api_key = get_env('TAVILY_API_KEY')
         if not api_key:
-            logger.warning("TAVILY_API_KEY not found - skipping Tavily search")
+            logger.warning("⚠️ TAVILY_API_KEY not found - skipping Tavily search")
+            print("⚠️ [Tavily] API 키가 설정되지 않았습니다. .env 파일을 확인하세요.")
             return []
 
         # Initialize client
@@ -64,7 +65,8 @@ def search_daum_finance_urls(
         if stock_code:
             search_query += f" {stock_code}"
 
-        logger.info(f"Tavily search query: {search_query}")
+        logger.info(f"🔍 [Tavily] Searching: {search_query}")
+        print(f"🔍 [Tavily] Searching: {search_query}")
 
         # Execute search
         # CRITICAL: Only use include_domains to ensure finance.daum.net only
@@ -92,7 +94,13 @@ def search_daum_finance_urls(
                     score=score
                 ))
 
-        logger.info(f"Tavily returned {len(results)} URLs")
+        logger.info(f"✅ [Tavily] Returned {len(results)} URLs")
+        print(f"✅ [Tavily] Returned {len(results)} URLs from query: {search_query}")
+
+        if len(results) == 0:
+            print(f"⚠️ [Tavily] No results found for: {search_query}")
+            logger.warning(f"No results found for query: {search_query}")
+
         return results
 
     except ImportError:

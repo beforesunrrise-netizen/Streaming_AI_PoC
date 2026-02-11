@@ -150,14 +150,22 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
     # Especially important for news/disclosures/talks which often return 404
     if use_tavily:
         try:
+            logger.info(f"🔍 [Planner] Requesting Tavily URLs for {intent.stock_name}")
+            print(f"🔍 [Planner] Using Tavily to find additional URLs for {intent.stock_name}")
+
             tavily_urls = get_tavily_urls_by_question_type(
                 question_type=question_type,
                 stock_name=intent.stock_name,
                 stock_code=intent.stock_code
             )
+
+            logger.info(f"✅ [Planner] Tavily returned {len(tavily_urls)} URLs")
+            print(f"✅ [Planner] Tavily found {len(tavily_urls)} additional URLs")
+
         except Exception as e:
             # If Tavily fails, continue with existing plans
-            logger.error(f"Tavily search failed, continuing with existing plans: {str(e)}", exc_info=True)
+            logger.error(f"❌ [Planner] Tavily search failed: {str(e)}", exc_info=True)
+            print(f"❌ [Planner] Tavily search failed: {str(e)}")
             tavily_urls = []
 
         # Add Tavily URLs that aren't duplicates

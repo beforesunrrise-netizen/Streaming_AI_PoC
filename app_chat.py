@@ -234,7 +234,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                     plans=plans,
                     summaries=summaries,
                     use_llm=use_llm,
-                    show_details=True  # Show all 4 steps
+                    show_details=True,  # Show all 4 steps
+                    chat_history=state.get_recent_messages(6)  # Include chat context
                 )
                 status.update(label="✅ 답변 생성 완료", state="complete")
         else:
@@ -244,7 +245,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                 plans=plans,
                 summaries=summaries,
                 use_llm=use_llm,
-                show_details=False  # Only show final answer (ChatGPT style)
+                show_details=False,  # Only show final answer (ChatGPT style)
+                chat_history=state.get_recent_messages(6)  # Include chat context
             )
 
         # Display answer directly (no placeholder needed)

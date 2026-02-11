@@ -134,13 +134,15 @@ def _generate_final_answer_basic(
 
 def _generate_final_answer_llm(
     intent: IntentResult,
-    summaries: List[SourceSummary]
+    summaries: List[SourceSummary],
+    chat_history: List = None
 ) -> str:
     """
     Generate final answer using LLM (optional mode)
     Args:
         intent: Intent analysis result
         summaries: Source summaries
+        chat_history: Previous chat messages for context (optional)
     Returns:
         Final answer text
     """
@@ -155,7 +157,18 @@ def _generate_final_answer_llm(
             for summary in summaries
         ])
 
+        # Prepare chat history context
+        history_context = ""
+        if chat_history and len(chat_history) > 0:
+            history_context = "\n**이전 대화 내용:**\n"
+            for msg in chat_history[-6:]:  # Last 3 exchanges
+                role = "사용자" if msg.role == "user" else "챗봇"
+                history_context += f"{role}: {msg.content[:200]}...\n"
+            history_context += "\n"
+
         prompt_text = f"""당신은 다음 금융(finance.daum.net) 데이터 기반 투자 정보 도우미입니다.
+
+{history_context}**핵심 원칙:**
 
 **핵심 원칙:**
 1. 아래 제공된 다음 금융 데이터만 사용하세요
@@ -244,7 +257,8 @@ def generate_answer(
     plans: List[FetchPlan],
     summaries: List[SourceSummary],
     use_llm: bool = False,
-    show_details: bool = True
+    show_details: bool = True,
+    chat_history: List = None
 ) -> str:
     """
     Generate 4-step structured answer
@@ -255,6 +269,7 @@ def generate_answer(
         summaries: Source summaries
         use_llm: Whether to use LLM for answer generation (default: False)
         show_details: Whether to show detailed steps 1-3 (default: True)
+        chat_history: Previous chat messages for context (optional)
 
     Returns:
         Complete answer as markdown string
@@ -295,7 +310,7 @@ def generate_answer(
     # Generate final answer (always shown)
     if summaries:
         if use_llm:
-            final_answer = _generate_final_answer_llm(intent, summaries)
+            final_answer = _generate_final_answer_llm(intent, summaries, chat_history)
         else:
             final_answer = _generate_final_answer_basic(intent, summaries)
         output.append(final_answer)
