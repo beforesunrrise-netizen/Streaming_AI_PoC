@@ -241,4 +241,4 @@ streamlit run app.py
 
 **개발 완료일**: 2026년 2월 11일
 **개발자**: Claude Code (Sonnet 4.5)
-**프로젝트 디렉토리**: /mnt/c/PROJECT/Daou_chatbot
+**프로젝트 디렉토리**: /mnt/c/PROJECT/Daum_chatbot

@@ -243,7 +243,8 @@ def generate_answer(
     intent: IntentResult,
     plans: List[FetchPlan],
     summaries: List[SourceSummary],
-    use_llm: bool = False
+    use_llm: bool = False,
+    show_details: bool = True
 ) -> str:
     """
     Generate 4-step structured answer
@@ -253,40 +254,45 @@ def generate_answer(
         plans: Fetch plans
         summaries: Source summaries
         use_llm: Whether to use LLM for answer generation (default: False)
+        show_details: Whether to show detailed steps 1-3 (default: True)
 
     Returns:
-        Complete 4-step answer as markdown string
+        Complete answer as markdown string
     """
     output = []
 
-    # Step 1: Intent Analysis
-    output.append("### [1] 질문 의도 분석\n")
-    output.append(f"- **질문 유형:** {intent.question_type}")
-    output.append(f"- **대상 종목:** {intent.stock_name or '확인 불가'} ({intent.stock_code or '확인 불가'})")
-    output.append(f"- **사용자가 원하는 것:** {_get_intent_description(intent.question_type)}\n")
+    # Show detailed steps only if requested
+    if show_details:
+        # Step 1: Intent Analysis
+        output.append("### [1] 질문 의도 분석\n")
+        output.append(f"- **질문 유형:** {intent.question_type}")
+        output.append(f"- **대상 종목:** {intent.stock_name or '확인 불가'} ({intent.stock_code or '확인 불가'})")
+        output.append(f"- **사용자가 원하는 것:** {_get_intent_description(intent.question_type)}\n")
 
-    # Step 2: Exploration Plan
-    output.append("### [2] 다음 금융 탐색 계획\n")
-    if plans:
-        for i, plan in enumerate(plans, 1):
-            output.append(f"- **Plan {i}:** {plan.description}")
-            output.append(f"  - URL: `{plan.url}`")
-    else:
-        output.append("- 탐색 계획을 생성할 수 없습니다 (종목 정보 부족)\n")
-    output.append("")
+        # Step 2: Exploration Plan
+        output.append("### [2] 다음 금융 탐색 계획\n")
+        if plans:
+            for i, plan in enumerate(plans, 1):
+                output.append(f"- **Plan {i}:** {plan.description}")
+                output.append(f"  - URL: `{plan.url}`")
+        else:
+            output.append("- 탐색 계획을 생성할 수 없습니다 (종목 정보 부족)\n")
+        output.append("")
 
-    # Step 3: Scraping Results Summary
-    output.append("### [3] 다음 금융 스크랩 결과 요약\n")
-    if summaries:
-        for i, summary in enumerate(summaries, 1):
-            output.append(f"**Source {i}: {summary.source_type}**")
-            output.append(f"- URL: `{summary.source_url}`")
-            output.append(f"- 근거 스니펫:\n```\n{summary.evidence_snippet}\n```\n")
-    else:
-        output.append("- 수집된 데이터가 없습니다.\n")
+        # Step 3: Scraping Results Summary
+        output.append("### [3] 다음 금융 스크랩 결과 요약\n")
+        if summaries:
+            for i, summary in enumerate(summaries, 1):
+                output.append(f"**Source {i}: {summary.source_type}**")
+                output.append(f"- URL: `{summary.source_url}`")
+                output.append(f"- 근거 스니펫:\n```\n{summary.evidence_snippet}\n```\n")
+        else:
+            output.append("- 수집된 데이터가 없습니다.\n")
 
-    # Step 4: Final Answer
-    output.append("### [4] 최종 답변 (초보자 친화)\n")
+        # Step 4: Final Answer
+        output.append("### [4] 최종 답변 (초보자 친화)\n")
+
+    # Generate final answer (always shown)
     if summaries:
         if use_llm:
             final_answer = _generate_final_answer_llm(intent, summaries)
@@ -298,41 +304,47 @@ def generate_answer(
         output.append("종목 코드를 확인하거나, 다시 시도해주세요.\n")
 
     # Reference section - clickable links to source pages
-    output.append("\n---")
-    output.append("### 📎 참고한 다음 금융 페이지\n")
+    if show_details:
+        output.append("\n---")
+        output.append("### 📎 참고한 다음 금융 페이지\n")
 
-    if summaries:
-        # Collect unique URLs
-        reference_urls = []
-        seen_urls = set()
+        if summaries:
+            # Collect unique URLs
+            reference_urls = []
+            seen_urls = set()
 
-        for summary in summaries:
-            url = summary.source_url
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                reference_urls.append({
-                    'type': summary.source_type,
-                    'url': url
-                })
+            for summary in summaries:
+                url = summary.source_url
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    reference_urls.append({
+                        'type': summary.source_type,
+                        'url': url
+                    })
 
-        # Display as clickable links
-        if reference_urls:
-            for i, ref in enumerate(reference_urls[:7], 1):  # Limit to 7 references
-                # Extract a friendly name from URL or use source type
-                friendly_name = ref['type'] or f"참고 {i}"
-                output.append(f"{i}. [{friendly_name}]({ref['url']})")
+            # Display as clickable links
+            if reference_urls:
+                for i, ref in enumerate(reference_urls[:7], 1):  # Limit to 7 references
+                    # Extract a friendly name from URL or use source type
+                    friendly_name = ref['type'] or f"참고 {i}"
+                    output.append(f"{i}. [{friendly_name}]({ref['url']})")
+            else:
+                output.append("- 참고 URL 없음")
         else:
-            output.append("- 참고 URL 없음")
+            output.append("- 수집된 데이터 없음")
+
+        output.append("")
+
+    # Footer - compact version
+    if show_details:
+        output.append("---")
+        output.append("**⚠️ 주의사항:**")
+        output.append("- 본 정보는 다음 금융(finance.daum.net) 데이터를 기반으로 합니다")
+        output.append("- 투자 판단 및 결과에 대한 책임은 투자자 본인에게 있습니다")
+        output.append("- 실시간 데이터가 아닐 수 있으니, 정확한 정보는 직접 확인하세요")
     else:
-        output.append("- 수집된 데이터 없음")
-
-    output.append("")
-
-    # Footer
-    output.append("---")
-    output.append("**⚠️ 주의사항:**")
-    output.append("- 본 정보는 다음 금융(finance.daum.net) 데이터를 기반으로 합니다")
-    output.append("- 투자 판단 및 결과에 대한 책임은 투자자 본인에게 있습니다")
-    output.append("- 실시간 데이터가 아닐 수 있으니, 정확한 정보는 직접 확인하세요")
+        # Minimal footer for clean mode
+        output.append("\n\n---")
+        output.append("*본 정보는 다음 금융 데이터 기반이며, 투자 판단은 본인 책임입니다*")
 
     return "\n".join(output)

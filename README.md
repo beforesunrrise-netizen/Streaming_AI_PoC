@@ -161,7 +161,7 @@ Network URL: http://192.168.0.10:8501  ← 이 주소를 공유하세요
 ## 📁 시스템 구조
 
 ```
-Daou_chatbot/
+Daum_chatbot/
 ├── app_chat.py            # GPT 스타일 챗봇 UI (권장)
 ├── app_multiturn.py       # 멀티턴 대화 챗봇 UI
 ├── app.py                 # 기본 단일 질문 UI
@@ -278,8 +278,8 @@ CMD ["streamlit", "run", "app_chat.py", "--server.address", "0.0.0.0"]
 ```
 
 ```bash
-docker build -t daou-chatbot .
-docker run -p 8501:8501 daou-chatbot
+docker build -t daum-chatbot .
+docker run -p 8501:8501 daum-chatbot
 ```
 
 ## 💡 팁

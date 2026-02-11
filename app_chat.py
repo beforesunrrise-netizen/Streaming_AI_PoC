@@ -23,12 +23,10 @@ load_dotenv()
 
 def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
     """
-    Process stock-related query
+    Process stock-related query with ChatGPT-like response flow
     """
-    response_placeholder = st.empty()
-
     try:
-        # STEP 1: Analyze intent
+        # STEP 1: Analyze intent (silent or with status)
         if show_steps:
             with st.status("🔍 질문 분석 중...", expanded=False) as status:
                 intent = analyze_intent(user_input, use_llm=use_llm)
@@ -42,18 +40,20 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                 st.markdown(f"- 대상 종목: **{intent.stock_name or '미확인'}** ({intent.stock_code or '미확인'})")
                 status.update(label="✅ 질문 분석 완료", state="complete")
         else:
-            intent = analyze_intent(user_input, use_llm=use_llm)
+            # Silent analysis - ChatGPT style
+            with st.spinner("🤔"):
+                intent = analyze_intent(user_input, use_llm=use_llm)
 
-            if not intent.stock_code and state.memory.has_stock_context():
-                intent.stock_code = state.memory.last_stock_code
-                intent.stock_name = state.memory.last_stock_name
+                if not intent.stock_code and state.memory.has_stock_context():
+                    intent.stock_code = state.memory.last_stock_code
+                    intent.stock_name = state.memory.last_stock_name
 
         # If no stock code, try to search
         if not intent.stock_code:
             stock_name = _extract_stock_name(user_input)
 
             if stock_name:
-                with st.spinner("🔍 종목 검색 중..."):
+                with st.spinner(f"🔍 '{stock_name}' 검색 중..."):
                     search_url = get_search_url(stock_name)
                     search_result = fetch(search_url, use_cache=True, cache_ttl=120)
 
@@ -62,7 +62,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
                         if len(candidates) == 0:
                             response = f"❌ '{stock_name}' 종목을 찾을 수 없습니다.\n\n정확한 종목명 또는 6자리 코드를 입력해주세요."
-                            response_placeholder.markdown(response)
+                            st.markdown(response)
                             state.add_assistant_message(response)
                             st.stop()
 
@@ -78,12 +78,12 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
                             state.pending_choice.next_action = intent.question_type
 
                             response = f"🔍 '{stock_name}' 검색 결과가 **{len(candidates)}개** 있습니다.\n\n아래에서 선택해주세요."
-                            response_placeholder.markdown(response)
+                            st.markdown(response)
                             state.add_assistant_message(response)
                             st.rerun()
             else:
                 response = "❌ 종목을 알 수 없습니다.\n\n**종목명** 또는 **6자리 코드**를 입력해주세요.\n\n예: `삼성전자`, `005930`"
-                response_placeholder.markdown(response)
+                st.markdown(response)
                 state.add_assistant_message(response)
                 st.stop()
 
@@ -108,11 +108,11 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
         if not plans:
             response = "❌ 정보 수집 계획을 생성할 수 없습니다."
-            response_placeholder.markdown(response)
+            st.markdown(response)
             state.add_assistant_message(response)
             st.stop()
 
-        # STEP 3: Fetch data
+        # STEP 3: Fetch data (silent mode for better UX)
         if show_steps:
             with st.status("📊 데이터 수집 중...", expanded=False) as status:
                 fetch_results = []
@@ -139,7 +139,8 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
                 status.update(label="✅ 데이터 수집 완료", state="complete")
         else:
-            with st.spinner("📊 다음 금융에서 정보를 가져오는 중..."):
+            # Silent data collection - ChatGPT style
+            with st.spinner("💭 생각하는 중..."):
                 fetch_results = []
 
                 for plan in plans:
@@ -179,7 +180,7 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
 
             response += "잠시 후 다시 시도해주세요."
 
-            response_placeholder.markdown(response)
+            st.markdown(response)
             state.add_assistant_message(response)
             st.stop()
 
@@ -197,35 +198,37 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
             for s in summaries
         ]
 
-        # STEP 5: Generate answer
+        # STEP 5: Generate answer (always show this step)
         if show_steps:
             with st.status("✍️ 답변 생성 중...", expanded=False) as status:
                 answer_text = generate_answer(
                     intent=intent,
                     plans=plans,
                     summaries=summaries,
-                    use_llm=use_llm
+                    use_llm=use_llm,
+                    show_details=True  # Show all 4 steps
                 )
                 status.update(label="✅ 답변 생성 완료", state="complete")
         else:
-            with st.spinner("✍️ 답변 생성 중..."):
-                answer_text = generate_answer(
-                    intent=intent,
-                    plans=plans,
-                    summaries=summaries,
-                    use_llm=use_llm
-                )
+            # Simple spinner for final answer generation
+            answer_text = generate_answer(
+                intent=intent,
+                plans=plans,
+                summaries=summaries,
+                use_llm=use_llm,
+                show_details=False  # Only show final answer (ChatGPT style)
+            )
 
-        # Display answer
-        response_placeholder.markdown(answer_text)
+        # Display answer directly (no placeholder needed)
+        st.markdown(answer_text)
 
         # Add to history
         state.add_assistant_message(answer_text)
 
     except Exception as e:
-            error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
-            response_placeholder.markdown(error_msg)
-            state.add_assistant_message(error_msg)
+        error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
+        st.markdown(error_msg)
+        state.add_assistant_message(error_msg)
 
 # Page configuration
 st.set_page_config(
@@ -235,100 +238,178 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for GPT-like interface
+# Custom CSS for ChatGPT-like interface
 st.markdown("""
 <style>
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    header {visibility: hidden;}
     
-    /* Main chat container */
+    /* Main chat container - ChatGPT style */
     .main {
         padding: 0;
+        max-width: 100%;
     }
     
-    /* Chat message styling */
+    /* Chat container with fixed header and footer */
+    .stApp {
+        background-color: #343541;
+    }
+    
+    /* Title bar - fixed at top */
+    h1 {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 999;
+        text-align: center;
+        padding: 1rem 0;
+        margin: 0;
+        background: #202123;
+        color: white;
+        border-bottom: 1px solid #444654;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    /* Chat messages container - scrollable area */
+    .main .block-container {
+        padding-top: 4rem;
+        padding-bottom: 8rem;
+        max-width: 48rem;
+        margin: 0 auto;
+    }
+    
+    /* Chat message styling - ChatGPT style */
     .stChatMessage {
-        padding: 1rem 1.5rem;
+        padding: 1.5rem;
+        margin: 0;
+        border-radius: 0;
     }
     
-    /* User message background */
+    /* User message - darker background */
+    .stChatMessage[data-testid="user-message"] {
+        background-color: #343541;
+    }
+    
+    /* Assistant message - lighter background */
+    .stChatMessage[data-testid="assistant-message"] {
+        background-color: #444654;
+    }
+    
+    /* Message content */
     [data-testid="stChatMessageContent"] {
         background-color: transparent;
+        color: #ececf1;
     }
     
-    /* Input styling */
+    /* Input container - fixed at bottom */
     .stChatInputContainer {
-        border-top: 1px solid #e0e0e0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 999;
+        border-top: 1px solid #444654;
         padding: 1rem;
-        background: white;
+        background: #343541;
+        max-width: 48rem;
+        margin: 0 auto;
+    }
+    
+    /* Input box styling */
+    .stChatInput > div {
+        background-color: #40414f;
+        border: 1px solid #565869;
+        border-radius: 0.5rem;
+    }
+    
+    .stChatInput textarea {
+        background-color: #40414f;
+        color: #ececf1;
+        border: none;
+    }
+    
+    .stChatInput textarea:focus {
+        border-color: #10a37f;
+        box-shadow: 0 0 0 1px #10a37f;
     }
     
     /* Button styling */
     .stButton > button {
-        border-radius: 8px;
+        border-radius: 0.5rem;
         font-weight: 500;
+        background-color: #10a37f;
+        color: white;
+        border: none;
+        transition: all 0.2s;
     }
     
-    /* Title */
-    h1 {
-        text-align: center;
-        padding: 1.5rem 0;
-        margin: 0;
-        border-bottom: 1px solid #e0e0e0;
-        background: white;
+    .stButton > button:hover {
+        background-color: #1a7f64;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3);
     }
     
     /* Status boxes */
     .element-container:has(.streamlit-expanderHeader) {
-        border-radius: 8px;
+        border-radius: 0.5rem;
         overflow: hidden;
+        background-color: #2a2b32;
     }
     
-    /* Quick action buttons */
-    .quick-action-btn {
-        background: #f0f0f0;
-        border: 1px solid #d0d0d0;
-        border-radius: 6px;
-        padding: 0.5rem 1rem;
-        margin: 0.25rem;
-        cursor: pointer;
-        display: inline-block;
-        font-size: 0.9rem;
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #2a2b32;
+        color: #ececf1;
+        border-radius: 0.5rem;
     }
     
-    .quick-action-btn:hover {
-        background: #e0e0e0;
+    /* Quick action buttons - ChatGPT style */
+    .stButton button {
+        background-color: #2a2b32;
+        color: #ececf1;
+        border: 1px solid #565869;
+        transition: all 0.2s;
     }
     
-    /* Welcome message */
+    .stButton button:hover {
+        background-color: #40414f;
+        border-color: #10a37f;
+    }
+    
+    /* Welcome message - dark theme */
     .welcome-container {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 60vh;
+        min-height: 60vh;
         text-align: center;
+        padding: 2rem;
     }
     
     .welcome-title {
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
     
     .welcome-subtitle {
         font-size: 1.2rem;
-        color: #666;
+        color: #c5c5d2;
         margin-bottom: 2rem;
     }
     
+    /* Example cards - dark theme */
     .example-questions {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 1rem;
         max-width: 800px;
         margin: 0 auto;
@@ -336,9 +417,9 @@ st.markdown("""
     }
     
     .example-card {
-        background: #f8f9fa;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
+        background: #2a2b32;
+        border: 1px solid #565869;
+        border-radius: 0.75rem;
         padding: 1rem;
         cursor: pointer;
         transition: all 0.2s;
@@ -346,8 +427,9 @@ st.markdown("""
     
     .example-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(16, 163, 127, 0.2);
+        border-color: #10a37f;
+        background: #40414f;
     }
     
     .example-icon {
@@ -357,7 +439,89 @@ st.markdown("""
     
     .example-text {
         font-size: 0.95rem;
-        color: #333;
+        color: #ececf1;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg, [data-testid="stSidebar"] {
+        background-color: #202123;
+    }
+    
+    .css-1d391kg .sidebar-content, [data-testid="stSidebar"] > div:first-child {
+        background-color: #202123;
+    }
+    
+    /* Sidebar text */
+    .css-1d391kg, [data-testid="stSidebar"] {
+        color: #ececf1;
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        background-color: #2a2b32;
+        color: #ececf1;
+        border: 1px solid #565869;
+    }
+    
+    /* Warning boxes */
+    .stWarning {
+        background-color: #4a3520;
+        color: #ececf1;
+        border: 1px solid #6b5430;
+    }
+    
+    /* Success boxes */
+    .stSuccess {
+        background-color: #1a3a2e;
+        color: #ececf1;
+        border: 1px solid #2a5a4a;
+    }
+    
+    /* Markdown text in messages */
+    .stMarkdown {
+        color: #ececf1;
+    }
+    
+    /* Links */
+    a {
+        color: #10a37f;
+    }
+    
+    a:hover {
+        color: #1a7f64;
+    }
+    
+    /* Code blocks */
+    code {
+        background-color: #2a2b32;
+        color: #ececf1;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+    }
+    
+    pre {
+        background-color: #2a2b32;
+        border: 1px solid #565869;
+        border-radius: 0.5rem;
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #2a2b32;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #565869;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #6b6c7e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -371,13 +535,13 @@ with st.sidebar:
     
     use_llm = st.checkbox(
         "🤖 AI 답변 사용",
-        value=True,  # 기본값을 True로 변경
+        value=True,
         help="OpenAI API를 사용하여 더 자연스러운 답변을 생성합니다"
     )
     
     show_steps = st.checkbox(
         "📊 처리 과정 보기",
-        value=True,  # 기본값을 True로 변경
+        value=False,  # 기본값을 False로 변경 - ChatGPT처럼 깔끔하게
         help="데이터 수집 및 분석 과정을 단계별로 표시합니다"
     )
     
@@ -399,31 +563,33 @@ with st.sidebar:
     st.markdown("### 💬 대화 관리")
     
     if state.chat_history:
-        st.caption(f"총 {len(state.chat_history)}개의 메시지")
+        message_count = len(state.chat_history)
+        user_count = sum(1 for msg in state.chat_history if msg.role == 'user')
+        st.caption(f"총 {message_count}개 메시지 ({user_count}개 질문)")
         
-        if st.button("🗑️ 대화 기록 삭제", use_container_width=True):
+        if st.button("🗑️ 새 대화 시작", use_container_width=True):
             state.reset()
-            st.success("대화 기록이 삭제되었습니다")
+            st.success("새 대화를 시작합니다")
             st.rerun()
     else:
-        st.caption("대화 기록이 없습니다")
+        st.caption("대화를 시작해보세요!")
     
     st.markdown("---")
     
-    # Guide
-    st.markdown("### 📖 사용 가이드")
-    st.markdown("""
-    **💡 질문 예시:**
-    - 삼성전자 현재가는?
-    - 뉴스 보여줘
-    - 투자자들 의견은?
-    - 최근 공시 있어?
-    
-    **🎯 특징:**
-    - 후속 질문 시 종목 자동 기억
-    - 다음 금융 실시간 데이터
-    - 자연스러운 대화 방식
-    """)
+    # Guide - 더 간결하게
+    with st.expander("📖 사용 가이드"):
+        st.markdown("""
+        **💡 질문 예시:**
+        - 삼성전자 현재가는?
+        - 뉴스 보여줘
+        - 투자자들 의견은?
+        - 최근 공시 있어?
+        
+        **🎯 특징:**
+        - 후속 질문 시 종목 자동 기억
+        - 다음 금융 실시간 데이터
+        - 자연스러운 대화 방식
+        """)
     
     st.markdown("---")
     st.caption("⚠️ 투자 판단은 본인 책임입니다")
@@ -435,31 +601,31 @@ st.title("💬 다음 금융 투자 챗봇")
 if not state.chat_history:
     st.markdown("""
     <div class="welcome-container">
-        <div class="welcome-title">다음 금융 투자 챗봇</div>
+        <div class="welcome-title">💬 다음 금융 투자 챗봇</div>
         <div class="welcome-subtitle">종목 정보를 실시간으로 조회하고 투자 판단을 도와드립니다</div>
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("### 💡 질문 예시를 선택하거나 직접 입력해보세요")
+    st.markdown("#### 💡 질문 예시를 선택하거나 아래에서 직접 입력해보세요")
     
-    # Example questions
-    examples = [
-        {"icon": "📈", "text": "키움증권 지금 사면 좋을까?"},
-        {"icon": "📰", "text": "삼성전자 거래 현황?"},
-        {"icon": "💬", "text": "현대차 관련 사람들 의견이 어때?"},
-        {"icon": "📊", "text": "네이버 주가는?"},
-    ]
+    # Example questions in a compact grid
+    col1, col2 = st.columns(2)
     
-    cols = st.columns(len(examples))
-    for i, (col, example) in enumerate(zip(cols, examples)):
-        with col:
-            if st.button(
-                f"{example['icon']}\n\n{example['text']}", 
-                key=f"example_{i}",
-                use_container_width=True
-            ):
-                st.session_state['example_question'] = example['text']
-                st.rerun()
+    with col1:
+        if st.button("📈 키움증권 지금 사면 좋을까?", key="ex1", use_container_width=True):
+            st.session_state['example_question'] = "키움증권 지금 사면 좋을까?"
+            st.rerun()
+        if st.button("💬 현대차 관련 사람들 의견이 어때?", key="ex3", use_container_width=True):
+            st.session_state['example_question'] = "현대차 관련 사람들 의견이 어때?"
+            st.rerun()
+    
+    with col2:
+        if st.button("📰 삼성전자 거래 현황?", key="ex2", use_container_width=True):
+            st.session_state['example_question'] = "삼성전자 거래 현황?"
+            st.rerun()
+        if st.button("📊 네이버 주가는?", key="ex4", use_container_width=True):
+            st.session_state['example_question'] = "네이버 주가는?"
+            st.rerun()
 
 # Display chat history
 for msg in state.chat_history:
@@ -468,62 +634,89 @@ for msg in state.chat_history:
 
 # Handle stock selection (HITL)
 if state.pending_choice.is_pending():
-    with st.chat_message("assistant"):
-        st.markdown("🔍 **여러 종목이 검색되었습니다. 하나를 선택해주세요:**")
-        
-        # Display options as buttons
-        selected_code = None
-        cols = st.columns(min(len(state.pending_choice.candidates), 3))
-        
-        for idx, candidate in enumerate(state.pending_choice.candidates):
-            col_idx = idx % 3
-            with cols[col_idx]:
-                if st.button(
-                    f"**{candidate['name']}**\n{candidate['code']}\n{candidate.get('market', '')}",
-                    key=f"stock_choice_{candidate['code']}",
-                    use_container_width=True
-                ):
-                    selected_code = candidate['code']
-                    selected_name = candidate['name']
-                    
-                    # Update memory
-                    state.memory.update(
-                        stock_code=selected_code,
-                        stock_name=selected_name
-                    )
-                    
-                    # Add confirmation message
-                    state.add_assistant_message(
-                        f"✅ **{selected_name} ({selected_code})** 종목을 선택하셨습니다."
-                    )
-                    
-                    # Clear pending and rerun
-                    state.pending_choice.clear()
-                    st.rerun()
-        
-        if st.button("❌ 취소", key="cancel_choice"):
-            state.pending_choice.clear()
-            state.add_assistant_message("종목 선택이 취소되었습니다. 다시 질문해주세요.")
-            st.rerun()
+    st.markdown("### 🔍 종목 선택")
+    st.markdown("여러 종목이 검색되었습니다. 하나를 선택해주세요:")
+    
+    # Display options as cards
+    selected_code = None
+    
+    # Use 3 columns for better layout
+    num_cols = min(len(state.pending_choice.candidates), 3)
+    cols = st.columns(num_cols)
+    
+    for idx, candidate in enumerate(state.pending_choice.candidates):
+        col_idx = idx % num_cols
+        with cols[col_idx]:
+            # Create a styled button for each candidate
+            button_label = f"**{candidate['name']}**\n\n{candidate['code']}"
+            if candidate.get('market'):
+                button_label += f"\n\n`{candidate.get('market')}`"
+            
+            if st.button(
+                button_label,
+                key=f"stock_choice_{candidate['code']}",
+                use_container_width=True
+            ):
+                selected_code = candidate['code']
+                selected_name = candidate['name']
+                
+                # Update memory
+                state.memory.update(
+                    stock_code=selected_code,
+                    stock_name=selected_name
+                )
+                
+                # Add confirmation message
+                state.add_assistant_message(
+                    f"✅ **{selected_name} ({selected_code})** 종목을 선택하셨습니다."
+                )
+                
+                # Clear pending and rerun
+                state.pending_choice.clear()
+                st.rerun()
+    
+    st.markdown("")
+    
+    # Cancel button
+    if st.button("❌ 취소", key="cancel_choice", use_container_width=True):
+        state.pending_choice.clear()
+        state.add_assistant_message("종목 선택이 취소되었습니다. 다시 질문해주세요.")
+        st.rerun()
+    
+    st.markdown("---")
 
-# Quick actions (if stock context exists)
+# Quick actions (if stock context exists and no pending choice)
 if state.memory.has_stock_context() and not state.pending_choice.is_pending():
-    with st.container():
-        st.markdown("##### 💡 빠른 질문")
-        quick_questions = [
-            "현재가는?",
-            "뉴스 보여줘",
-            "투자 의견은?",
-            "공시 있어?",
-            "차트 어때?"
-        ]
-        
-        cols = st.columns(len(quick_questions))
-        for col, question in zip(cols, quick_questions):
-            with col:
-                if st.button(question, key=f"quick_{question}", use_container_width=True):
-                    st.session_state['quick_input'] = question
-                    st.rerun()
+    st.markdown("##### 💡 빠른 질문")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("💰 현재가는?", key="quick_1", use_container_width=True):
+            st.session_state['quick_input'] = "현재가는?"
+            st.rerun()
+    
+    with col2:
+        if st.button("📰 뉴스", key="quick_2", use_container_width=True):
+            st.session_state['quick_input'] = "뉴스 보여줘"
+            st.rerun()
+    
+    with col3:
+        if st.button("💬 의견", key="quick_3", use_container_width=True):
+            st.session_state['quick_input'] = "투자 의견은?"
+            st.rerun()
+    
+    with col4:
+        if st.button("📋 공시", key="quick_4", use_container_width=True):
+            st.session_state['quick_input'] = "공시 있어?"
+            st.rerun()
+    
+    with col5:
+        if st.button("📊 차트", key="quick_5", use_container_width=True):
+            st.session_state['quick_input'] = "차트 어때?"
+            st.rerun()
+    
+    st.markdown("---")
 
 # Handle quick input
 if 'quick_input' in st.session_state:
@@ -533,8 +726,9 @@ elif 'example_question' in st.session_state:
     user_input = st.session_state['example_question']
     del st.session_state['example_question']
 else:
+    # Chat input at the bottom
     user_input = st.chat_input(
-        "질문을 입력하세요... (예: 삼성전자 시세는?)",
+        "메시지를 입력하세요...",
         key="chat_input",
         disabled=state.pending_choice.is_pending()
     )
@@ -549,37 +743,33 @@ if user_input and not state.pending_choice.is_pending():
     
     # Check if it's a general conversation
     if is_general_conversation(user_input):
-        with st.chat_message("assistant"):
-            # Prepare stock context for conversational response
-            stock_ctx = None
-            if state.memory.has_stock_context():
-                stock_ctx = {
-                    'name': state.memory.last_stock_name,
-                    'code': state.memory.last_stock_code
-                }
-            
-            # Generate conversational response
-            with st.spinner("💭 생각하는 중..."):
-                response = generate_conversational_response(
-                    user_input=user_input,
-                    chat_history=state.get_recent_messages(6),
-                    stock_context=stock_ctx,
-                    use_llm=use_llm
-                )
-            
-            st.markdown(response)
-            state.add_assistant_message(response)
+        # Prepare stock context for conversational response
+        stock_ctx = None
+        if state.memory.has_stock_context():
+            stock_ctx = {
+                'name': state.memory.last_stock_name,
+                'code': state.memory.last_stock_code
+            }
+        
+        # Generate conversational response (silent mode)
+        with st.spinner("💭"):
+            response = generate_conversational_response(
+                user_input=user_input,
+                chat_history=state.get_recent_messages(6),
+                stock_context=stock_ctx,
+                use_llm=use_llm
+            )
+        
+        st.markdown(response)
+        state.add_assistant_message(response)
     else:
         # Process stock-related query
-        with st.chat_message("assistant"):
-            _process_stock_query(user_input, state, show_steps, use_llm)
+        _process_stock_query(user_input, state, show_steps, use_llm)
 
-# Footer
+# Footer - 더 간결하게
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: gray; font-size: 0.85rem; padding: 1rem;'>
-    <p><strong>💬 다음 금융 투자 챗봇</strong></p>
-    <p>본 서비스는 다음 금융(finance.daum.net) 데이터를 기반으로 합니다.</p>
-    <p>투자 판단 및 결과에 대한 책임은 투자자 본인에게 있습니다.</p>
+<div style='text-align: center; color: #8e8ea0; font-size: 0.75rem; padding: 0.5rem; margin-top: 2rem;'>
+    <p>본 서비스는 다음 금융(finance.daum.net) 데이터를 기반으로 합니다 | 투자 판단은 본인 책임입니다</p>
 </div>
 """, unsafe_allow_html=True)

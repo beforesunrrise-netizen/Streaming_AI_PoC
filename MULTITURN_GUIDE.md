@@ -46,7 +46,7 @@
 ### 새로 추가된 파일
 
 ```
-Daou_chatbot/
+Daum_chatbot/
 ├── state.py                      # 대화 상태/메모리 관리
 ├── ui_components.py              # UI 컴포넌트 (STEP별 렌더링, HITL)
 ├── app_multiturn.py              # 멀티턴 지원 Streamlit 앱

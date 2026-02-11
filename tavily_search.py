@@ -90,12 +90,17 @@ def search_daum_finance_urls(
         return results
 
     except ImportError:
-        print("⚠️ tavily-python not installed - skipping Tavily search")
+        error_msg = "⚠️ tavily-python not installed - skipping Tavily search"
+        print(error_msg)
         print("   Install with: pip install tavily-python")
         return []
 
     except Exception as e:
-        print(f"⚠️ Tavily search failed: {str(e)}")
+        error_msg = f"⚠️ Tavily search failed: {str(e)}"
+        print(error_msg)
+        # Print more details for debugging
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return []
 
 
@@ -159,7 +164,13 @@ def get_tavily_urls_by_question_type(
         ]
 
     else:
-        queries = [f"{stock_name} 정보"]
+        # For other types, provide comprehensive queries
+        queries = [
+            f"{stock_name} 정보",
+            f"{stock_name} 최신 뉴스",
+            f"{stock_name} 시세",
+            f"{stock_name} 분석"
+        ]
 
     # Collect URLs from all queries
     all_urls = set()
