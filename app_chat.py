@@ -608,7 +608,7 @@ with st.sidebar:
     
     show_steps = st.checkbox(
         "📊 처리 과정 보기",
-        value=False,  # 기본값을 False로 변경 - ChatGPT처럼 깔끔하게
+        value=True,  # 기본값을 True 변경 - ChatGPT처럼 깔끔하게
         help="데이터 수집 및 분석 과정을 단계별로 표시합니다"
     )
     
