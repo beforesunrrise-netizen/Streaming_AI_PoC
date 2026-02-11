@@ -9,14 +9,13 @@ from dotenv import load_dotenv
 
 from state import init_session_state
 from intent import analyze_intent, _extract_stock_name
-from planner import create_plan
-from daum_fetch import fetch
-from summarizer import summarize_results
-from answer import generate_answer
-from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH, get_env
+from config import get_env
 from endpoints import get_search_url
 from parsers import parse_search_results
 from conversation import is_general_conversation, generate_conversational_response
+
+# Import LangGraph workflow
+from graph.workflow import run_workflow
 
 # Load environment variables
 load_dotenv()
@@ -31,250 +30,104 @@ logger = logging.getLogger(__name__)
 
 def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
     """
-    Process stock-related query with ChatGPT-like response flow
+    Process stock-related query using LangGraph workflow
     """
     try:
         # Log the query
-        logger.info(f"Processing stock query: {user_input[:50]}...")
+        logger.info(f"Processing stock query with LangGraph: {user_input[:50]}...")
         
-        # STEP 1: Analyze intent (silent or with status)
-        if show_steps:
-            with st.status("🔍 질문 분석 중...", expanded=False) as status:
-                intent = analyze_intent(user_input, use_llm=use_llm)
-
-                # Check memory for stock context
-                if not intent.stock_code and state.memory.has_stock_context():
-                    intent.stock_code = state.memory.last_stock_code
-                    intent.stock_name = state.memory.last_stock_name
-
-                st.markdown(f"- 질문 유형: **{intent.question_type}**")
-                st.markdown(f"- 대상 종목: **{intent.stock_name or '미확인'}** ({intent.stock_code or '미확인'})")
-                status.update(label="✅ 질문 분석 완료", state="complete", expanded=False)
-        else:
-            # Silent analysis - ChatGPT style
-            with st.spinner("🤔"):
-                intent = analyze_intent(user_input, use_llm=use_llm)
-
-                if not intent.stock_code and state.memory.has_stock_context():
-                    intent.stock_code = state.memory.last_stock_code
-                    intent.stock_name = state.memory.last_stock_name
-
-        # If no stock code, try to search
-        if not intent.stock_code:
-            stock_name = _extract_stock_name(user_input)
-
-            if stock_name:
-                with st.spinner(f"🔍 '{stock_name}' 검색 중..."):
-                    search_url = get_search_url(stock_name)
-                    search_result = fetch(search_url, use_cache=True, cache_ttl=120)
-
-                    if search_result.success:
-                        candidates = parse_search_results(search_result.content)
-
-                        if len(candidates) == 0:
-                            response = f"❌ '{stock_name}' 종목을 찾을 수 없습니다.\n\n정확한 종목명 또는 6자리 코드를 입력해주세요."
-                            st.markdown(response)
-                            state.add_assistant_message(response)
-                            st.stop()
-
-                        elif len(candidates) == 1:
-                            intent.stock_code = candidates[0]['code']
-                            intent.stock_name = candidates[0]['name']
-                            st.success(f"✅ {intent.stock_name} 종목을 찾았습니다!")
-
-                        else:
-                            # Multiple results - set pending choice
-                            state.pending_choice.candidates = candidates
-                            state.pending_choice.original_user_query = user_input
-                            state.pending_choice.next_action = intent.question_type
-
-                            response = f"🔍 '{stock_name}' 검색 결과가 **{len(candidates)}개** 있습니다.\n\n아래에서 선택해주세요."
-                            st.markdown(response)
-                            state.add_assistant_message(response)
-                            st.rerun()
-            else:
-                response = "❌ 종목을 알 수 없습니다.\n\n**종목명** 또는 **6자리 코드**를 입력해주세요.\n\n예: `삼성전자`, `005930`"
-                st.markdown(response)
-                state.add_assistant_message(response)
-                st.stop()
-
-        # Update memory
-        state.memory.update(
-            stock_code=intent.stock_code,
-            stock_name=intent.stock_name,
-            question_type=intent.question_type
-        )
-
-        # STEP 2: Create plan
-        logger.info(f"Creating plan for question type: {intent.question_type}")
-        
-        if show_steps:
-            with st.status("📋 정보 수집 계획 수립 중...", expanded=False) as status:
-                plans = create_plan(intent)
-
-                if plans:
-                    for i, plan in enumerate(plans, 1):
-                        st.markdown(f"{i}. {plan.description}")
-                status.update(label="✅ 계획 수립 완료", state="complete", expanded=False)
-        else:
-            plans = create_plan(intent)
-
-        if not plans:
-            # Show more helpful error message with debugging info
-            logger.error(f"No plans generated for question_type={intent.question_type}, stock_code={intent.stock_code}")
-            
-            response = "❌ 정보 수집 계획을 생성할 수 없습니다.\n\n"
-            
-            # Add debug info if available
-            if get_env('DEBUG_MODE', 'false').lower() == 'true':
-                response += f"**디버그 정보:**\n"
-                response += f"- 질문 유형: {intent.question_type}\n"
-                response += f"- 종목 코드: {intent.stock_code}\n"
-                response += f"- 종목명: {intent.stock_name}\n\n"
-            
-            response += "잠시 후 다시 시도해주세요."
-            
-            st.markdown(response)
-            state.add_assistant_message(response)
-            st.stop()
-
-        # STEP 3: Fetch data (silent mode for better UX)
-        if show_steps:
-            with st.status("📊 데이터 수집 중...", expanded=False) as status:
-                fetch_results = []
-
-                for i, plan in enumerate(plans):
-                    st.markdown(f"⏳ {plan.description}...")
-
-                    # Determine cache TTL
-                    if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
-                        cache_ttl = CACHE_TTL_NEWS
-                    elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
-                        cache_ttl = CACHE_TTL_PRICE
-                    else:
-                        cache_ttl = CACHE_TTL_SEARCH
-
-                    result = fetch(
-                        url=plan.url,
-                        use_cache=True,
-                        cache_ttl=cache_ttl,
-                        is_json=plan.is_json
-                    )
-
-                    fetch_results.append((result, plan))
-
-                status.update(label="✅ 데이터 수집 완료", state="complete", expanded=False)
-        else:
-            # Silent data collection - ChatGPT style
-            with st.spinner("💭 생각하는 중..."):
-                fetch_results = []
-
-                for plan in plans:
-                    if 'news' in plan.url.lower() or 'disclosure' in plan.url.lower():
-                        cache_ttl = CACHE_TTL_NEWS
-                    elif 'price' in plan.url.lower() or 'quote' in plan.url.lower():
-                        cache_ttl = CACHE_TTL_PRICE
-                    else:
-                        cache_ttl = CACHE_TTL_SEARCH
-
-                    result = fetch(
-                        url=plan.url,
-                        use_cache=True,
-                        cache_ttl=cache_ttl,
-                        is_json=plan.is_json
-                    )
-
-                    fetch_results.append((result, plan))
-
-        # Check if all failed
-        failed_count = sum(1 for result, _ in fetch_results if not result.success)
-        
-        logger.info(f"Fetch completed: {len(plans) - failed_count}/{len(plans)} succeeded")
-
-        # If some succeeded, continue with those results
-        # Only show error if ALL failed
-        if failed_count == len(plans) and failed_count > 0:
-            # Show detailed error for debugging
-            error_details = []
-            for result, plan in fetch_results:
-                if not result.success:
-                    error_details.append(f"- {plan.description}: {result.error_message or 'Unknown error'}")
-
-            response = f"❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n"
-
-            # Add debug info in development/debugging
-            if get_env('DEBUG_MODE', 'false').lower() == 'true':
-                response += "**디버그 정보:**\n" + "\n".join(error_details) + "\n\n"
-
-            response += "잠시 후 다시 시도해주세요."
-
-            st.markdown(response)
-            state.add_assistant_message(response)
-            st.stop()
-
-        elif failed_count > 0:
-            # Some failed but some succeeded - show warning
-            success_count = len(plans) - failed_count
-            st.warning(f"⚠️ 일부 데이터 소스에 접근할 수 없습니다 ({success_count}/{len(plans)} 성공). 사용 가능한 데이터로 답변합니다.")
-
-        # STEP 4: Summarize
-        summaries = summarize_results(fetch_results, plans)
-
-        # Store in memory
-        state.memory.last_sources = [
-            {"type": s.source_type, "snippet": s.evidence_snippet}
-            for s in summaries
+        # Prepare chat history for LLM context
+        chat_history = [
+            {'role': msg.role, 'content': msg.content}
+            for msg in state.get_recent_messages(6)
         ]
-
-        # STEP 4: Generate answer - 사고 과정을 expander로 감싸기
+        
+        # Check memory for stock context
+        if state.memory.has_stock_context():
+            # Add memory context to query
+            user_input_with_context = user_input
+            logger.info(f"Using stock context: {state.memory.last_stock_name} ({state.memory.last_stock_code})")
+        
+        # Run LangGraph workflow
         if show_steps:
-            # 사고 과정을 collapse 가능하게 표시
-            with st.expander("🤔 사고 과정 보기", expanded=False):
-                st.markdown("### [1] 질문 의도 분석")
-                st.markdown(f"- **질문 유형:** {intent.question_type}")
-                st.markdown(f"- **대상 종목:** {intent.stock_name or '미확인'} ({intent.stock_code or '미확인'})")
-                
-                st.markdown("### [2] 다음 금융 탐색 계획")
-                if plans:
-                    for i, plan in enumerate(plans, 1):
-                        st.markdown(f"{i}. {plan.description}")
-                
-                st.markdown("### [3] 다음 금융 스크랩 결과 요약")
-                if summaries:
-                    for i, summary in enumerate(summaries, 1):
-                        st.markdown(f"**Source {i}: {summary.source_type}**")
-                        st.markdown(f"```\n{summary.evidence_snippet[:300]}...\n```")
+            # Show processing steps
+            with st.spinner("🔍 질문 분석 중..."):
+                pass
             
-            # 최종 답변 생성 (LLM 사용)
-            with st.spinner("✍️ 답변 생성 중..."):
-                answer_text = generate_answer(
-                    intent=intent,
-                    plans=plans,
-                    summaries=summaries,
-                    use_llm=use_llm,
-                    show_details=False,  # 최종 답변만 표시 (사고 과정은 위 expander에 표시됨)
-                    chat_history=state.get_recent_messages(6)
+            # Run workflow and show intermediate steps
+            with st.expander("🤔 사고 과정 보기", expanded=False):
+                st.markdown("### LangGraph Workflow 실행 중...")
+                
+                # Execute workflow
+                final_state = run_workflow(
+                    user_query=user_input,
+                    chat_history=chat_history,
+                    show_steps=show_steps,
+                    use_llm=use_llm
                 )
+                
+                # Show workflow results
+                if final_state.get('intent_analyzed'):
+                    st.markdown("### [1] 질문 의도 분석 ✅")
+                    st.markdown(f"- **질문 유형:** {final_state.get('question_type')}")
+                    st.markdown(f"- **대상 종목:** {final_state.get('stock_name')} ({final_state.get('stock_code')})")
+                
+                if final_state.get('plans_created'):
+                    st.markdown("### [2] 정보 수집 계획 ✅")
+                    st.markdown(f"- **계획 수:** {len(final_state.get('fetch_plans', []))}")
+                
+                if final_state.get('data_collected'):
+                    st.markdown("### [3] 데이터 수집 ✅")
+                    st.markdown(f"- **성공:** {final_state.get('successful_fetches')}/{final_state.get('successful_fetches') + final_state.get('failed_fetches')}")
+                
+                if final_state.get('summaries_created'):
+                    st.markdown("### [4] 데이터 요약 ✅")
+                    st.markdown(f"- **요약 수:** {len(final_state.get('summaries', []))}")
+                    st.markdown(f"- **토큰 수:** ~{final_state.get('total_tokens')} tokens")
+            
+            with st.spinner("✍️ 최종 답변 생성 중..."):
+                pass
         else:
-            # Simple spinner for final answer generation
+            # Silent mode - just show spinner
             with st.spinner("💭 생각하는 중..."):
-                answer_text = generate_answer(
-                    intent=intent,
-                    plans=plans,
-                    summaries=summaries,
-                    use_llm=use_llm,
-                    show_details=False,  # Only show final answer (ChatGPT style)
-                    chat_history=state.get_recent_messages(6)  # Include chat context
+                final_state = run_workflow(
+                    user_query=user_input,
+                    chat_history=chat_history,
+                    show_steps=show_steps,
+                    use_llm=use_llm
                 )
-
-        # Display answer directly (no placeholder needed)
+        
+        # Check for errors
+        if final_state.get('error'):
+            error_msg = f"❌ **오류가 발생했습니다**\n\n{final_state['error']}\n\n잠시 후 다시 시도해주세요."
+            st.markdown(error_msg)
+            state.add_assistant_message(error_msg)
+            return
+        
+        # Check if answer was generated
+        if not final_state.get('answer_generated'):
+            response = "❌ 답변을 생성할 수 없습니다.\n\n잠시 후 다시 시도해주세요."
+            st.markdown(response)
+            state.add_assistant_message(response)
+            return
+        
+        # Update memory
+        if final_state.get('stock_code'):
+            state.memory.update(
+                stock_code=final_state['stock_code'],
+                stock_name=final_state['stock_name'],
+                question_type=final_state['question_type']
+            )
+        
+        # Display final answer
+        answer_text = final_state.get('final_answer', '')
         st.markdown(answer_text)
-
+        
         # Add to history
         state.add_assistant_message(answer_text)
-
+        
     except Exception as e:
-        logger.error(f"Error processing query: {str(e)}", exc_info=True)
+        logger.error(f"Error in LangGraph workflow: {str(e)}", exc_info=True)
         error_msg = f"❌ **오류가 발생했습니다**\n\n```\n{str(e)}\n```\n\n잠시 후 다시 시도해주세요."
         st.markdown(error_msg)
         state.add_assistant_message(error_msg)

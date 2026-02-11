@@ -67,11 +67,11 @@ KEYWORDS_NEWS = [
     "공개", "최근", "요즘"
 ]
 
-# LLM settings
-LLM_MODEL_ANTHROPIC = "claude-3-5-sonnet-20241022"
-LLM_MODEL_OPENAI = "gpt-4o-mini"
-LLM_MAX_TOKENS = 1024
-LLM_TEMPERATURE = 0.3
+# LLM settings - 최신 최강 모델 사용
+LLM_MODEL_ANTHROPIC = "claude-3-5-sonnet-20241022"  # Claude 최신 버전
+LLM_MODEL_OPENAI = "gpt-4o"  # OpenAI 최신 최강 모델 (2024년 5월 출시, 멀티모달)
+LLM_MAX_TOKENS = 4096  # 최대 출력 토큰 (충분한 답변 길이)
+LLM_TEMPERATURE = 0.4  # 창의성과 일관성의 균형 (0.3→0.4로 약간 상향)
 
 # Function to get environment variables (compatible with both local .env and Streamlit Cloud Secrets)
 def get_env(key: str, default: str = None) -> str:
