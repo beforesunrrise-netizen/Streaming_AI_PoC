@@ -482,7 +482,7 @@ if user_input and not state.pending_choice.is_pending():
                 error_details = []
                 for result, plan in fetch_results:
                     if not result.success:
-                        error_details.append(f"- {plan.source_type}: {result.error_message or 'Unknown error'}")
+                        error_details.append(f"- {plan.description}: {result.error_message or 'Unknown error'}")
                 
                 response = f"❌ 다음 금융에서 데이터를 가져올 수 없습니다.\n\n"
                 
