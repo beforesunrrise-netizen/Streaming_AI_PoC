@@ -15,6 +15,7 @@ from answer import generate_answer
 from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH, get_env
 from endpoints import get_search_url
 from parsers import parse_search_results
+from conversation import is_general_conversation, generate_conversational_response
 
 # Load environment variables
 load_dotenv()
@@ -339,13 +340,43 @@ if user_input and not state.pending_choice.is_pending():
     with st.chat_message("user"):
         st.markdown(user_input)
     
-    # Process the question
-    with st.chat_message("assistant"):
-        response_placeholder = st.empty()
-        
-        try:
-            # STEP 1: Analyze intent
-            if show_steps:
+    # Check if it's a general conversation
+    if is_general_conversation(user_input):
+        with st.chat_message("assistant"):
+            # Prepare stock context for conversational response
+            stock_ctx = None
+            if state.memory.has_stock_context():
+                stock_ctx = {
+                    'name': state.memory.last_stock_name,
+                    'code': state.memory.last_stock_code
+                }
+            
+            # Generate conversational response
+            with st.spinner("💭 생각하는 중..."):
+                response = generate_conversational_response(
+                    user_input=user_input,
+                    chat_history=state.get_recent_messages(6),
+                    stock_context=stock_ctx,
+                    use_llm=use_llm
+                )
+            
+            st.markdown(response)
+            state.add_assistant_message(response)
+    else:
+        # Process stock-related query
+        with st.chat_message("assistant"):
+            _process_stock_query(user_input, state, show_steps, use_llm)
+
+
+def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool):
+    """
+    Process stock-related query
+    """
+    response_placeholder = st.empty()
+    
+    try:
+        # STEP 1: Analyze intent
+        if show_steps:
                 with st.status("🔍 질문 분석 중...", expanded=False) as status:
                     intent = analyze_intent(user_input, use_llm=use_llm)
                     
