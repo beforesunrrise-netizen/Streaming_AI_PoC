@@ -113,6 +113,51 @@ def search_daum_finance_urls(
         return []
 
 
+def get_tavily_news_by_question_type(
+    question_type: str,
+    stock_name: Optional[str] = None,
+    stock_code: Optional[str] = None,
+    max_results: int = 3
+) -> List[TavilySearchResult]:
+    """
+    Get relevant news from Tavily based on question type
+    Returns full search results with titles, not just URLs
+
+    Args:
+        question_type: Question type (A_매수판단형, B_시세상태형, etc.)
+        stock_name: Stock name
+        stock_code: Stock code
+        max_results: Maximum number of results to return (default: 3)
+
+    Returns:
+        List of TavilySearchResult objects with titles and URLs
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from config import (
+        QUESTION_TYPE_BUY_RECOMMENDATION,
+        QUESTION_TYPE_PRICE_STATUS,
+        QUESTION_TYPE_PUBLIC_OPINION,
+        QUESTION_TYPE_NEWS_DISCLOSURE,
+    )
+
+    logger.info(f"Getting Tavily news for question_type={question_type}, stock={stock_name}, limit={max_results}")
+
+    # Simple query for latest news
+    query = f"{stock_name} 최신 뉴스"
+
+    results = search_daum_finance_urls(
+        query=query,
+        stock_name=stock_name,
+        stock_code=stock_code,
+        max_results=max_results
+    )
+
+    logger.info(f"Found {len(results)} news articles from Tavily")
+    return results
+
+
 def get_tavily_urls_by_question_type(
     question_type: str,
     stock_name: Optional[str] = None,
@@ -120,6 +165,7 @@ def get_tavily_urls_by_question_type(
 ) -> List[str]:
     """
     Get relevant URLs from Tavily based on question type
+    (Legacy function - returns URLs only)
 
     Args:
         question_type: Question type (A_매수판단형, B_시세상태형, etc.)

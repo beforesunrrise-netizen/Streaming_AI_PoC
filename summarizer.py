@@ -202,6 +202,23 @@ def summarize_results(
     summaries = []
 
     for fetch_result, plan in fetch_results:
+        # Special handling for Tavily news - don't need successful fetch
+        if plan.parser_name == "tavily_news":
+            try:
+                parsed_data = {"title": plan.title, "url": plan.url}
+                snippet = f"📰 {plan.title}" if plan.title else "최신 뉴스"
+                source_type = plan.title or "뉴스"  # Use actual title as source_type
+
+                summaries.append(SourceSummary(
+                    source_url=plan.url,
+                    source_type=source_type,
+                    key_data=parsed_data,
+                    evidence_snippet=snippet
+                ))
+            except Exception as e:
+                pass  # Skip on error
+            continue  # Move to next result
+
         if not fetch_result.success:
             # Skip failed fetches instead of adding them
             # This allows graceful degradation

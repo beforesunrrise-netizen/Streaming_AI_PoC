@@ -25,7 +25,7 @@ from endpoints import (
     get_realtime_quote_api,
     get_finance_api_url
 )
-from tavily_search import get_tavily_urls_by_question_type
+from tavily_search import get_tavily_urls_by_question_type, get_tavily_news_by_question_type
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,8 @@ class FetchPlan:
     url: str
     parser_name: str
     is_json: bool = False
-    
+    title: str = None  # Optional: pre-fetched title (for Tavily news results)
+
     @property
     def source_type(self) -> str:
         """Alias for description for backward compatibility"""
@@ -71,7 +72,7 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
     code = intent.stock_code
     question_type = intent.question_type
 
-    # Type A: Buy recommendation - need price + news (no chart API)
+    # Type A: Buy recommendation - need price + news
     if question_type == QUESTION_TYPE_BUY_RECOMMENDATION:
         plans.append(FetchPlan(
             plan_id="A1",
@@ -79,8 +80,30 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
             url=get_price_url(code),
             parser_name="parse_price_page"
         ))
-        # Note: News and discussions are searched via Tavily
-        # since direct URLs often return 404
+
+        # Get latest news from Tavily
+        logger.info(f"[Planner] Getting latest news from Tavily for {intent.stock_name}")
+        try:
+            news_results = get_tavily_news_by_question_type(
+                question_type=question_type,
+                stock_name=intent.stock_name,
+                stock_code=intent.stock_code,
+                max_results=3  # Latest 3 news articles
+            )
+
+            for i, news in enumerate(news_results, 1):
+                plans.append(FetchPlan(
+                    plan_id=f"A{i+1}",
+                    description="최신 뉴스",
+                    url=news.url,
+                    parser_name="tavily_news",
+                    title=news.title
+                ))
+
+            logger.info(f"[Planner] Added {len(news_results)} news articles from Tavily")
+
+        except Exception as e:
+            logger.error(f"[Planner] Failed to get Tavily news: {str(e)}")
 
     # Type B: Price status - need price + quote (no chart API)
     elif question_type == QUESTION_TYPE_PRICE_STATUS:
@@ -111,18 +134,35 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
         ))
         # Talks/opinions will be searched via Tavily
 
-    # Type D: News/disclosure - need news + disclosure
-    # Note: Direct news/disclosure URLs often return 404, but provide fallback
+    # Type D: News/disclosure - use Tavily for news with titles
     elif question_type == QUESTION_TYPE_NEWS_DISCLOSURE:
-        # Add fallback news and disclosure URLs
+        # Use Tavily to get latest news with titles (top 3)
+        logger.info(f"[Planner] Getting latest news from Tavily for {intent.stock_name}")
+        try:
+            news_results = get_tavily_news_by_question_type(
+                question_type=question_type,
+                stock_name=intent.stock_name,
+                stock_code=intent.stock_code,
+                max_results=3  # Latest 3 news articles
+            )
+
+            for i, news in enumerate(news_results, 1):
+                plans.append(FetchPlan(
+                    plan_id=f"D{i}",
+                    description="최신 뉴스",
+                    url=news.url,
+                    parser_name="tavily_news",  # Special parser that uses pre-fetched title
+                    title=news.title  # Store the title from Tavily
+                ))
+
+            logger.info(f"[Planner] Added {len(news_results)} news articles from Tavily")
+
+        except Exception as e:
+            logger.error(f"[Planner] Failed to get Tavily news: {str(e)}")
+
+        # Still add disclosure URL as fallback
         plans.append(FetchPlan(
-            plan_id="D1",
-            description="뉴스 페이지 조회",
-            url=get_news_url(code),
-            parser_name="parse_news_list"
-        ))
-        plans.append(FetchPlan(
-            plan_id="D2",
+            plan_id="D99",
             description="공시 페이지 조회",
             url=get_disclosure_url(code),
             parser_name="parse_disclosure_list"
@@ -191,6 +231,12 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
 
         for url in tavily_urls:
             if url not in existing_urls:
+                # Skip individual article URLs (React SPAs that require JavaScript)
+                # These URLs have patterns like: /news/stock/[article_id] or /news/[article_id]
+                if _is_individual_article_url(url):
+                    logger.info(f"[Planner] Skipping individual article URL (React SPA): {url}")
+                    continue
+
                 # Determine parser based on URL pattern
                 parser_name = _infer_parser_from_url(url)
 
@@ -211,6 +257,34 @@ def create_plan(intent: IntentResult, use_tavily: bool = True) -> List[FetchPlan
 
     logger.info(f"Created {len(plans)} plans for execution")
     return plans
+
+
+def _is_individual_article_url(url: str) -> bool:
+    """
+    Check if URL is an individual article page (React SPA)
+    These pages require JavaScript to render and cannot be parsed from HTML
+
+    Args:
+        url: URL to check
+
+    Returns:
+        True if it's an individual article URL, False otherwise
+    """
+    import re
+
+    # Pattern 1: /news/stock/[article_id] or /news/economy/[article_id]
+    if re.search(r'/news/(stock|economy|industry|world)/[a-zA-Z0-9]+$', url):
+        return True
+
+    # Pattern 2: /news/[numeric_article_id]
+    if re.search(r'/news/\d{14,}$', url):
+        return True
+
+    # Pattern 3: Mobile site individual articles
+    if 'm.finance.daum.net' in url and re.search(r'/(news|disclosure)/', url) and not url.endswith('/news') and not url.endswith('/disclosures'):
+        return True
+
+    return False
 
 
 def _infer_parser_from_url(url: str) -> str:
