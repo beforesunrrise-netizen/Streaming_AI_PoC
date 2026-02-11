@@ -147,8 +147,11 @@ def _generate_final_answer_llm(
         Final answer text
     """
     try:
-        api_key = get_env('ANTHROPIC_API_KEY') or get_env('OPENAI_API_KEY')
-        if not api_key:
+        # Check if OpenAI API key is available
+        if not get_env('OPENAI_API_KEY'):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("No OpenAI API key found, using basic template mode")
             return _generate_final_answer_basic(intent, summaries)
 
         # Prepare evidence snippets
@@ -157,13 +160,23 @@ def _generate_final_answer_llm(
             for summary in summaries
         ])
 
+        # Check if we have any evidence
+        if not evidence.strip():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("No evidence data available for LLM")
+            return _generate_final_answer_basic(intent, summaries)
+
         # Prepare chat history context
         history_context = ""
         if chat_history and len(chat_history) > 0:
             history_context = "\n**이전 대화 내용:**\n"
             for msg in chat_history[-6:]:  # Last 3 exchanges
-                role = "사용자" if msg.role == "user" else "챗봇"
-                history_context += f"{role}: {msg.content[:200]}...\n"
+                # Handle both dict and object formats
+                role_value = msg.get('role') if isinstance(msg, dict) else msg.role
+                content_value = msg.get('content') if isinstance(msg, dict) else msg.content
+                role = "사용자" if role_value == "user" else "챗봇"
+                history_context += f"{role}: {content_value[:200]}...\n"
             history_context += "\n"
 
         prompt_text = f"""당신은 **GPT-4o 기반 금융 AI 어시스턴트**입니다. 실시간 인터넷 검색(Tavily API)을 통해 다음 금융에서 수집한 최신 데이터를 분석합니다.
@@ -238,42 +251,31 @@ def _generate_final_answer_llm(
 
 답변을 작성해주세요:"""
 
-        # Use Anthropic Claude if available
-        if get_env('ANTHROPIC_API_KEY'):
-            import anthropic
-            from config import LLM_MODEL_ANTHROPIC, LLM_MAX_TOKENS, LLM_TEMPERATURE
+        # Use OpenAI API
+        from openai import OpenAI
+        from config import LLM_MODEL_OPENAI, LLM_MAX_TOKENS, LLM_TEMPERATURE
+        import logging
+        logger = logging.getLogger(__name__)
 
-            client = anthropic.Anthropic(api_key=get_env('ANTHROPIC_API_KEY'))
+        logger.info(f"Calling OpenAI API with model: {LLM_MODEL_OPENAI}")
+        
+        client = OpenAI(api_key=get_env('OPENAI_API_KEY'))
 
-            message = client.messages.create(
-                model=LLM_MODEL_ANTHROPIC,
-                max_tokens=LLM_MAX_TOKENS,
-                temperature=LLM_TEMPERATURE,
-                messages=[{"role": "user", "content": prompt_text}]
-            )
+        response = client.chat.completions.create(
+            model=LLM_MODEL_OPENAI,
+            max_completion_tokens=LLM_MAX_TOKENS,
+            temperature=LLM_TEMPERATURE,
+            messages=[{"role": "user", "content": prompt_text}]
+        )
 
-            return message.content[0].text
+        logger.info("OpenAI API call successful")
+        return response.choices[0].message.content
 
-        # Use OpenAI if Anthropic is not available
-        elif get_env('OPENAI_API_KEY'):
-            from openai import OpenAI
-            from config import LLM_MODEL_OPENAI, LLM_MAX_TOKENS, LLM_TEMPERATURE
-
-            client = OpenAI(api_key=get_env('OPENAI_API_KEY'))
-
-            response = client.chat.completions.create(
-                model=LLM_MODEL_OPENAI,
-                max_tokens=LLM_MAX_TOKENS,
-                temperature=LLM_TEMPERATURE,
-                messages=[{"role": "user", "content": prompt_text}]
-            )
-
-            return response.choices[0].message.content
-
-        # Fallback to basic mode
-        return _generate_final_answer_basic(intent, summaries)
-
-    except Exception:
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"LLM answer generation failed: {str(e)}", exc_info=True)
+        logger.info("Falling back to basic template mode")
         return _generate_final_answer_basic(intent, summaries)
 
 

@@ -207,7 +207,7 @@ def summarize_results(
             try:
                 parsed_data = {"title": plan.title, "url": plan.url}
                 snippet = f"📰 {plan.title}" if plan.title else "최신 뉴스"
-                source_type = plan.title or "뉴스"  # Use actual title as source_type
+                source_type = "뉴스"  # Always use "뉴스" for consistent matching
 
                 summaries.append(SourceSummary(
                     source_url=plan.url,
