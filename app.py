@@ -11,7 +11,7 @@ from planner import create_plan
 from daum_fetch import fetch
 from summarizer import summarize_results
 from answer import generate_answer
-from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH
+from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH, get_env
 
 # Load environment variables
 load_dotenv()
@@ -63,7 +63,7 @@ with st.sidebar:
 
     use_llm = st.checkbox(
         "LLM 사용 (더 자연스러운 답변)",
-        value=os.getenv('USE_LLM', 'false').lower() == 'true',
+        value=get_env('USE_LLM', 'false').lower() == 'true',
         help="환경변수에 API 키가 설정되어 있어야 합니다"
     )
 

@@ -12,7 +12,7 @@ from planner import create_plan
 from daum_fetch import fetch
 from summarizer import summarize_results
 from answer import generate_answer
-from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH
+from config import CACHE_TTL_PRICE, CACHE_TTL_NEWS, CACHE_TTL_SEARCH, get_env
 from endpoints import get_search_url
 from parsers import parse_search_results
 
@@ -163,7 +163,7 @@ with st.sidebar:
     
     use_llm = st.checkbox(
         "🤖 AI 답변 사용",
-        value=os.getenv('USE_LLM', 'false').lower() == 'true',
+        value=get_env('USE_LLM', 'false').lower() == 'true',
         help="OpenAI API를 사용하여 더 자연스러운 답변을 생성합니다"
     )
     

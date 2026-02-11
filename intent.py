@@ -16,7 +16,8 @@ from config import (
     KEYWORDS_BUY,
     KEYWORDS_PRICE,
     KEYWORDS_OPINION,
-    KEYWORDS_NEWS
+    KEYWORDS_NEWS,
+    get_env
 )
 from endpoints import get_search_url
 from daum_fetch import fetch
@@ -148,7 +149,7 @@ def _classify_question_llm(text: str) -> tuple:
     """
     try:
         # Check if LLM is available
-        api_key = os.getenv('ANTHROPIC_API_KEY') or os.getenv('OPENAI_API_KEY')
+        api_key = get_env('ANTHROPIC_API_KEY') or get_env('OPENAI_API_KEY')
         if not api_key:
             # Fallback to basic mode
             return (_classify_question_basic(text), 0.5)
@@ -171,11 +172,11 @@ def _classify_question_llm(text: str) -> tuple:
         response_text = ""
 
         # Use Anthropic Claude if available
-        if os.getenv('ANTHROPIC_API_KEY'):
+        if get_env('ANTHROPIC_API_KEY'):
             import anthropic
             from config import LLM_MODEL_ANTHROPIC, LLM_MAX_TOKENS, LLM_TEMPERATURE
 
-            client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            client = anthropic.Anthropic(api_key=get_env('ANTHROPIC_API_KEY'))
 
             message = client.messages.create(
                 model=LLM_MODEL_ANTHROPIC,
@@ -187,11 +188,11 @@ def _classify_question_llm(text: str) -> tuple:
             response_text = message.content[0].text
 
         # Use OpenAI if Anthropic is not available
-        elif os.getenv('OPENAI_API_KEY'):
+        elif get_env('OPENAI_API_KEY'):
             from openai import OpenAI
             from config import LLM_MODEL_OPENAI, LLM_MAX_TOKENS, LLM_TEMPERATURE
 
-            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+            client = OpenAI(api_key=get_env('OPENAI_API_KEY'))
 
             response = client.chat.completions.create(
                 model=LLM_MODEL_OPENAI,

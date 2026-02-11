@@ -72,7 +72,7 @@ with st.sidebar:
 
     use_llm = st.checkbox(
         "LLM 사용",
-        value=os.getenv('USE_LLM', 'false').lower() == 'true',
+        value=get_env('USE_LLM', 'false').lower() == 'true',
         help="더 자연스러운 답변 (API 키 필요)"
     )
 

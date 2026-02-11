@@ -13,7 +13,8 @@ from config import (
     QUESTION_TYPE_PRICE_STATUS,
     QUESTION_TYPE_PUBLIC_OPINION,
     QUESTION_TYPE_NEWS_DISCLOSURE,
-    QUESTION_TYPE_OTHER
+    QUESTION_TYPE_OTHER,
+    get_env
 )
 
 
@@ -146,7 +147,7 @@ def _generate_final_answer_llm(
         Final answer text
     """
     try:
-        api_key = os.getenv('ANTHROPIC_API_KEY') or os.getenv('OPENAI_API_KEY')
+        api_key = get_env('ANTHROPIC_API_KEY') or get_env('OPENAI_API_KEY')
         if not api_key:
             return _generate_final_answer_basic(intent, summaries)
 
@@ -187,11 +188,11 @@ def _generate_final_answer_llm(
 """
 
         # Use Anthropic Claude if available
-        if os.getenv('ANTHROPIC_API_KEY'):
+        if get_env('ANTHROPIC_API_KEY'):
             import anthropic
             from config import LLM_MODEL_ANTHROPIC, LLM_MAX_TOKENS, LLM_TEMPERATURE
 
-            client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            client = anthropic.Anthropic(api_key=get_env('ANTHROPIC_API_KEY'))
 
             message = client.messages.create(
                 model=LLM_MODEL_ANTHROPIC,
@@ -203,11 +204,11 @@ def _generate_final_answer_llm(
             return message.content[0].text
 
         # Use OpenAI if Anthropic is not available
-        elif os.getenv('OPENAI_API_KEY'):
+        elif get_env('OPENAI_API_KEY'):
             from openai import OpenAI
             from config import LLM_MODEL_OPENAI, LLM_MAX_TOKENS, LLM_TEMPERATURE
 
-            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+            client = OpenAI(api_key=get_env('OPENAI_API_KEY'))
 
             response = client.chat.completions.create(
                 model=LLM_MODEL_OPENAI,
