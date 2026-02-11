@@ -238,7 +238,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for ChatGPT-like interface
+# Custom CSS for Light Mobile App Style
 st.markdown("""
 <style>
     /* Hide Streamlit branding */
@@ -246,15 +246,15 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Main chat container - ChatGPT style */
+    /* Main chat container - Light mobile style */
     .main {
         padding: 0;
         max-width: 100%;
     }
     
-    /* Chat container with fixed header and footer */
+    /* Chat container - Light background */
     .stApp {
-        background-color: #343541;
+        background: linear-gradient(180deg, #E8EAF6 0%, #F5F7FA 100%);
     }
     
     /* Title bar - fixed at top */
@@ -267,11 +267,12 @@ st.markdown("""
         text-align: center;
         padding: 1rem 0;
         margin: 0;
-        background: #202123;
+        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
         color: white;
-        border-bottom: 1px solid #444654;
-        font-size: 1.2rem;
+        border-bottom: none;
+        font-size: 1.1rem;
         font-weight: 600;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
     }
     
     /* Chat messages container - scrollable area */
@@ -282,27 +283,40 @@ st.markdown("""
         margin: 0 auto;
     }
     
-    /* Chat message styling - ChatGPT style */
+    /* Chat message styling - Mobile app style */
     .stChatMessage {
-        padding: 1.5rem;
-        margin: 0;
-        border-radius: 0;
+        padding: 1.2rem;
+        margin: 0.5rem 0;
+        border-radius: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
     
-    /* User message - darker background */
+    /* User message - Light blue bubble */
     .stChatMessage[data-testid="user-message"] {
-        background-color: #343541;
+        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+        margin-left: 2rem;
     }
     
-    /* Assistant message - lighter background */
+    /* Assistant message - White bubble */
     .stChatMessage[data-testid="assistant-message"] {
-        background-color: #444654;
+        background-color: #FFFFFF;
+        margin-right: 2rem;
+        border: 1px solid #E8EAF6;
     }
     
     /* Message content */
     [data-testid="stChatMessageContent"] {
         background-color: transparent;
-        color: #ececf1;
+    }
+    
+    /* User message text color */
+    .stChatMessage[data-testid="user-message"] [data-testid="stChatMessageContent"] {
+        color: #FFFFFF;
+    }
+    
+    /* Assistant message text color */
+    .stChatMessage[data-testid="assistant-message"] [data-testid="stChatMessageContent"] {
+        color: #2C3E50;
     }
     
     /* Input container - fixed at bottom */
@@ -312,75 +326,81 @@ st.markdown("""
         left: 0;
         right: 0;
         z-index: 999;
-        border-top: 1px solid #444654;
+        border-top: 1px solid #E8EAF6;
         padding: 1rem;
-        background: #343541;
+        background: #FFFFFF;
         max-width: 48rem;
         margin: 0 auto;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
     }
     
     /* Input box styling */
     .stChatInput > div {
-        background-color: #40414f;
-        border: 1px solid #565869;
-        border-radius: 0.5rem;
+        background-color: #F5F7FA;
+        border: 1px solid #E8EAF6;
+        border-radius: 1.5rem;
     }
     
     .stChatInput textarea {
-        background-color: #40414f;
-        color: #ececf1;
+        background-color: #F5F7FA;
+        color: #2C3E50;
         border: none;
     }
     
     .stChatInput textarea:focus {
-        border-color: #10a37f;
-        box-shadow: 0 0 0 1px #10a37f;
+        border-color: #667EEA;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
     }
     
-    /* Button styling */
+    .stChatInput textarea::placeholder {
+        color: #A0AEC0;
+    }
+    
+    /* Button styling - Modern rounded buttons */
     .stButton > button {
-        border-radius: 0.5rem;
+        border-radius: 1rem;
         font-weight: 500;
-        background-color: #10a37f;
+        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
         color: white;
         border: none;
         transition: all 0.2s;
+        padding: 0.5rem 1rem;
     }
     
     .stButton > button:hover {
-        background-color: #1a7f64;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
     }
     
-    /* Status boxes */
+    /* Status boxes - Light theme */
     .element-container:has(.streamlit-expanderHeader) {
-        border-radius: 0.5rem;
+        border-radius: 1rem;
         overflow: hidden;
-        background-color: #2a2b32;
+        background-color: #F5F7FA;
     }
     
     /* Expander styling */
     .streamlit-expanderHeader {
-        background-color: #2a2b32;
-        color: #ececf1;
-        border-radius: 0.5rem;
+        background-color: #F5F7FA;
+        color: #2C3E50;
+        border-radius: 1rem;
     }
     
-    /* Quick action buttons - ChatGPT style */
+    /* Quick action buttons - Light pill style */
     .stButton button {
-        background-color: #2a2b32;
-        color: #ececf1;
-        border: 1px solid #565869;
+        background-color: #FFFFFF;
+        color: #667EEA;
+        border: 1px solid #E8EAF6;
         transition: all 0.2s;
     }
     
     .stButton button:hover {
-        background-color: #40414f;
-        border-color: #10a37f;
+        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+        color: white;
+        border-color: transparent;
     }
     
-    /* Welcome message - dark theme */
+    /* Welcome message - Light theme */
     .welcome-container {
         display: flex;
         flex-direction: column;
@@ -395,18 +415,18 @@ st.markdown("""
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
+        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
     
     .welcome-subtitle {
         font-size: 1.2rem;
-        color: #c5c5d2;
+        color: #718096;
         margin-bottom: 2rem;
     }
     
-    /* Example cards - dark theme */
+    /* Example cards - Light theme */
     .example-questions {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -417,9 +437,9 @@ st.markdown("""
     }
     
     .example-card {
-        background: #2a2b32;
-        border: 1px solid #565869;
-        border-radius: 0.75rem;
+        background: #FFFFFF;
+        border: 1px solid #E8EAF6;
+        border-radius: 1rem;
         padding: 1rem;
         cursor: pointer;
         transition: all 0.2s;
@@ -427,9 +447,8 @@ st.markdown("""
     
     .example-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(16, 163, 127, 0.2);
-        border-color: #10a37f;
-        background: #40414f;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        border-color: #667EEA;
     }
     
     .example-icon {
@@ -439,89 +458,106 @@ st.markdown("""
     
     .example-text {
         font-size: 0.95rem;
-        color: #ececf1;
+        color: #2C3E50;
     }
     
-    /* Sidebar styling */
+    /* Sidebar styling - Light theme */
     .css-1d391kg, [data-testid="stSidebar"] {
-        background-color: #202123;
+        background-color: #FFFFFF;
+        border-right: 1px solid #E8EAF6;
     }
     
     .css-1d391kg .sidebar-content, [data-testid="stSidebar"] > div:first-child {
-        background-color: #202123;
+        background-color: #FFFFFF;
     }
     
     /* Sidebar text */
     .css-1d391kg, [data-testid="stSidebar"] {
-        color: #ececf1;
+        color: #2C3E50;
     }
     
-    /* Info boxes */
+    /* Info boxes - Light theme */
     .stInfo {
-        background-color: #2a2b32;
-        color: #ececf1;
-        border: 1px solid #565869;
+        background: linear-gradient(135deg, #E3F2FD 0%, #E8EAF6 100%);
+        color: #2C3E50;
+        border: 1px solid #667EEA;
+        border-radius: 1rem;
     }
     
     /* Warning boxes */
     .stWarning {
-        background-color: #4a3520;
-        color: #ececf1;
-        border: 1px solid #6b5430;
+        background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+        color: #2C3E50;
+        border: 1px solid #FF9800;
+        border-radius: 1rem;
     }
     
     /* Success boxes */
     .stSuccess {
-        background-color: #1a3a2e;
-        color: #ececf1;
-        border: 1px solid #2a5a4a;
+        background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+        color: #2C3E50;
+        border: 1px solid #4CAF50;
+        border-radius: 1rem;
     }
     
     /* Markdown text in messages */
     .stMarkdown {
-        color: #ececf1;
+        color: #2C3E50;
     }
     
     /* Links */
     a {
-        color: #10a37f;
+        color: #667EEA;
+        text-decoration: none;
     }
     
     a:hover {
-        color: #1a7f64;
+        color: #764BA2;
+        text-decoration: underline;
     }
     
-    /* Code blocks */
+    /* Code blocks - Light theme */
     code {
-        background-color: #2a2b32;
-        color: #ececf1;
+        background-color: #F5F7FA;
+        color: #667EEA;
         padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
+        border-radius: 0.5rem;
+        border: 1px solid #E8EAF6;
     }
     
     pre {
-        background-color: #2a2b32;
-        border: 1px solid #565869;
-        border-radius: 0.5rem;
+        background-color: #F5F7FA;
+        border: 1px solid #E8EAF6;
+        border-radius: 0.75rem;
     }
     
-    /* Scrollbar styling */
+    /* Scrollbar styling - Light theme */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     
     ::-webkit-scrollbar-track {
-        background: #2a2b32;
+        background: #F5F7FA;
     }
     
     ::-webkit-scrollbar-thumb {
-        background: #565869;
-        border-radius: 4px;
+        background: #CBD5E0;
+        border-radius: 3px;
     }
     
     ::-webkit-scrollbar-thumb:hover {
-        background: #6b6c7e;
+        background: #A0AEC0;
+    }
+    
+    /* Spinner - Light theme */
+    .stSpinner > div {
+        border-top-color: #667EEA !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: #E8EAF6;
     }
 </style>
 """, unsafe_allow_html=True)

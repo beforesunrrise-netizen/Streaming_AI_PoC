@@ -1,5 +1,16 @@
 """
-Streamlit UI for Daum Finance Q&A Chatbot
+[LEGACY] Streamlit UI for Daum Finance Q&A Chatbot - Single Question Mode
+
+⚠️ 이 파일은 레거시 단일 질문 UI입니다.
+   새로운 프로젝트에서는 app_chat.py (GPT 스타일) 사용을 권장합니다.
+
+기능:
+- 기본 단일 질문/답변 방식
+- STEP별 처리 과정 표시
+
+권장 대안:
+- app_chat.py: GPT 스타일 대화형 UI (권장)
+- app_multiturn.py: 멀티턴 대화 + HITL 지원
 """
 
 import streamlit as st

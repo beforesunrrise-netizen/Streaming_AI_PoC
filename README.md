@@ -9,8 +9,8 @@
 배포된 앱: [Streamlit Cloud에서 실행 중]
 
 > 배포가 완료되면 이 섹션에 실제 URL이 표시됩니다.
-> 
-> 배포 방법: `DEPLOY_NOW.md` 파일을 참고하세요!
+>
+> 배포 방법: `DEPLOYMENT.md` 파일을 참고하세요!
 
 ## 주요 특징
 
@@ -303,8 +303,8 @@ docker run -p 8501:8501 daum-chatbot
    ```
 
 3. **상세 가이드**
-   - 📋 [STREAMLIT_CLOUD_DEBUG.md](./STREAMLIT_CLOUD_DEBUG.md) 참조
-   - 프록시 설정, 대안 방법 등 포함
+   - 📋 [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) 참조
+   - 프록시 설정, 대안 방법, Streamlit Cloud 디버깅 등 포함
 
 ### 로컬 환경에서 테스트
 ```bash

@@ -44,3 +44,11 @@ htmlcov/
 
 # Claude
 .claude/
+
+# 임시 파일
+commit_message.txt
+*.tmp
+
+# 테스트 결과 데이터
+test_summary_*.json
+test_result_*.json
