@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Import LangGraph workflow (optional)
 try:
-    from graph.workflow import run_workflow
+    from graph.workflow import create_workflow
+    from graph.state import create_initial_state
     LANGGRAPH_AVAILABLE = True
     logger.info("✅ LangGraph available - using advanced workflow")
 except ImportError:
@@ -60,86 +61,114 @@ def _process_stock_query(user_input: str, state, show_steps: bool, use_llm: bool
         
         # Run LangGraph workflow
         if show_steps:
-            # Show processing steps
-            with st.spinner("🔍 질문 분석 중..."):
-                pass
-            
             # Run workflow and show intermediate steps
-            with st.expander("🧠 사고 과정 보기 (전문 애널리스트 분석)", expanded=False):
-                st.markdown("### 생각중.....")
+            with st.expander("🧠 사고 과정 보기 (전문 애널리스트 분석)", expanded=True):
+                # Create placeholders for each step
+                step1_placeholder = st.empty()
+                step2_placeholder = st.empty()
+                step3_placeholder = st.empty()
+                step4_placeholder = st.empty()
+                step5_placeholder = st.empty()
                 
-                # Execute workflow
-                final_state = run_workflow(
+                step1_placeholder.markdown("### [1단계] 질문 의도 분석 중... ⏳")
+                
+                # Prepare initial state
+                initial_state = create_initial_state(
                     user_query=user_input,
                     chat_history=chat_history,
                     show_steps=show_steps,
                     use_llm=use_llm
                 )
                 
-                # Show workflow results
-                if final_state.get('intent_analyzed'):
-                    st.markdown("### [1단계] 질문 의도 분석 ✅")
-                    st.markdown(f"- **질문 유형:** {final_state.get('question_type')}")
-                    st.markdown(f"- **대상 종목:** {final_state.get('stock_name')} ({final_state.get('stock_code')})")
-                    st.markdown("---")
+                app = create_workflow()
                 
-                if final_state.get('plans_created'):
-                    st.markdown("### [2단계] 정보 수집 계획 수립 ✅")
-                    plans = final_state.get('fetch_plans', [])
-                    st.markdown(f"- **수집 계획 수:** {len(plans)}개")
-                    
-                    # 계획 상세 표시
-                    for i, plan in enumerate(plans[:5], 1):
-                        plan_title = plan.get('title', 'N/A')
-                        plan_url = plan.get('url', '')
-                        st.markdown(f"  {i}. {plan_title}")
-                    st.markdown("---")
-                
-                if final_state.get('data_collected'):
-                    st.markdown("### [3단계] 데이터 수집 완료 ✅")
-                    success = final_state.get('successful_fetches', 0)
-                    failed = final_state.get('failed_fetches', 0)
-                    st.markdown(f"- **수집 성공:** {success}/{success + failed}개")
-                    st.markdown("---")
-                
-                if final_state.get('summaries_created'):
-                    st.markdown("### [4단계] 전문 애널리스트 분석 ✅")
-                    summaries = final_state.get('summaries', [])
-                    st.markdown(f"- **분석 데이터 소스:** {len(summaries)}개")
-                    st.markdown(f"- **총 데이터 토큰:** ~{final_state.get('total_tokens')} tokens")
-                    
-                    # 수집된 데이터 상세 표시
-                    st.markdown("\n**📋 수집된 데이터:**")
-                    for i, summary in enumerate(summaries[:5], 1):
-                        source_type = summary.get('source_type', 'Unknown')
-                        st.markdown(f"  {i}. [{source_type}] ✓")
+                # Stream results and update UI in real-time
+                final_state = {}
+                for state_update in app.stream(initial_state):
+                    if state_update:
+                        # Get node name and updated state
+                        node_name = list(state_update.keys())[0]
+                        current_state = state_update[node_name]
                         
-                        # 간단한 프리뷰
-                        snippet = summary.get('evidence_snippet', '')
-                        if snippet:
-                            preview = snippet[:100].replace('\n', ' ').strip()
-                            st.caption(f"   → {preview}...")
-                    
-                    st.markdown("\n**🔍 분석 프레임워크:**")
-                    st.markdown("  ✓ 시세 분석 (Technical Analysis)")
-                    st.markdown("  ✓ 뉴스·리포트 분석 (Fundamental Analysis)")
-                    st.markdown("  ✓ 시장 반응 분석 (Market Sentiment)")
-                    st.markdown("  ✓ 종합 판단 (Synthesis)")
-                    st.markdown("---")
+                        # Merge with final_state
+                        final_state.update(current_state)
+                        
+                        # Update UI based on completed node
+                        if node_name == "intent" and final_state.get('intent_analyzed'):
+                            step1_placeholder.markdown(
+                                f"### [1단계] 질문 의도 분석 ✅\n\n"
+                                f"- **질문 유형:** {final_state.get('question_type')}\n"
+                                f"- **대상 종목:** {final_state.get('stock_name')} ({final_state.get('stock_code')})\n\n"
+                                f"---"
+                            )
+                            step2_placeholder.markdown("### [2단계] 정보 수집 계획 수립 중... ⏳")
+                        
+                        elif node_name == "plan" and final_state.get('plans_created'):
+                            plans = final_state.get('fetch_plans', [])
+                            plan_text = f"### [2단계] 정보 수집 계획 수립 ✅\n\n- **수집 계획 수:** {len(plans)}개\n\n"
+                            for i, plan in enumerate(plans[:5], 1):
+                                plan_title = plan.get('title', 'N/A')
+                                plan_text += f"  {i}. {plan_title}\n"
+                            plan_text += "\n---"
+                            step2_placeholder.markdown(plan_text)
+                            step3_placeholder.markdown("### [3단계] 데이터 수집 중... ⏳")
+                        
+                        elif node_name == "fetch" and final_state.get('data_collected'):
+                            success = final_state.get('successful_fetches', 0)
+                            failed = final_state.get('failed_fetches', 0)
+                            step3_placeholder.markdown(
+                                f"### [3단계] 데이터 수집 완료 ✅\n\n"
+                                f"- **수집 성공:** {success}/{success + failed}개\n\n"
+                                f"---"
+                            )
+                            step4_placeholder.markdown("### [4단계] 전문 애널리스트 분석 중... ⏳")
+                        
+                        elif node_name == "summarize" and final_state.get('summaries_created'):
+                            summaries = final_state.get('summaries', [])
+                            summary_text = (
+                                f"### [4단계] 전문 애널리스트 분석 ✅\n\n"
+                                f"- **분석 데이터 소스:** {len(summaries)}개\n"
+                                f"- **총 데이터 토큰:** ~{final_state.get('total_tokens')} tokens\n\n"
+                                f"**📋 수집된 데이터:**\n"
+                            )
+                            for i, summary in enumerate(summaries[:5], 1):
+                                source_type = summary.get('source_type', 'Unknown')
+                                summary_text += f"  {i}. [{source_type}] ✓\n"
+                                snippet = summary.get('evidence_snippet', '')
+                                if snippet:
+                                    preview = snippet[:100].replace('\n', ' ').strip()
+                                    summary_text += f"     → {preview}...\n"
+                            
+                            summary_text += (
+                                f"\n**🔍 분석 프레임워크:**\n"
+                                f"  ✓ 시세 분석 (Technical Analysis)\n"
+                                f"  ✓ 뉴스·리포트 분석 (Fundamental Analysis)\n"
+                                f"  ✓ 시장 반응 분석 (Market Sentiment)\n"
+                                f"  ✓ 종합 판단 (Synthesis)\n\n"
+                                f"---"
+                            )
+                            step4_placeholder.markdown(summary_text)
+                            step5_placeholder.markdown("### [5단계] 최종 투자 의견 생성 중... ⏳")
+                        
+                        elif node_name == "answer" and final_state.get('answer_generated'):
+                            step5_placeholder.markdown("### [5단계] 최종 투자 의견 생성 완료 ✅")
                 
-                st.markdown("### [5단계] 최종 투자 의견 생성 중... ⏳")
-            
-            with st.spinner("✍️ 최종 답변 생성 중..."):
-                pass
+                # If there was an error during streaming, set final_state from last update
+                if not final_state:
+                    step1_placeholder.error("❌ 워크플로우 실행 중 오류가 발생했습니다.")
         else:
             # Silent mode - just show spinner
             with st.spinner("💭 생각하는 중..."):
-                final_state = run_workflow(
+                # Execute workflow without showing intermediate steps
+                initial_state = create_initial_state(
                     user_query=user_input,
                     chat_history=chat_history,
                     show_steps=show_steps,
                     use_llm=use_llm
                 )
+                
+                app = create_workflow()
+                final_state = app.invoke(initial_state)
         
         # Check for errors
         if final_state.get('error'):
